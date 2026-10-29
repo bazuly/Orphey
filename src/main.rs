@@ -9,6 +9,6 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "Orphey",
         native_options,
-        Box::new(|_cc| Ok(Box::new(app::App::default()))),
+        Box::new(|_cc| Ok(Box::new(app::core::App::default()))),
     )
 }

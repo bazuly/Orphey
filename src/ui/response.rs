@@ -1,4 +1,4 @@
-pub fn show(ui: &mut egui::Ui, app: &crate::app::App) {
+pub fn show(ui: &mut egui::Ui, app: &crate::app::core::App) {
     egui::Panel::right("responses")
         .exact_size(420.0)
         .show(ui, |ui| {

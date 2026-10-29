@@ -11,6 +11,20 @@ pub enum Method {
     DELETE,
 }
 
+impl Method {
+    pub fn body_template(self) -> &'static str {
+        match self {
+            Method::GET => "{\n  \"id\": 1\n}",
+            Method::POST => "{\n  \"name\": \"Ada\",\n  \"email\": \"ada@example.com\"\n}",
+            Method::PUT => {
+                "{\n  \"id\": 1,\n  \"name\": \"Ada\",\n  \"email\": \"ada@example.com\"\n}"
+            }
+            Method::PATCH => "{\n  \"name\": \"Ada Lovelace\"\n}",
+            Method::DELETE => "{\n  \"id\": 1\n}",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RequestDraft {
     pub method: Method,
@@ -25,7 +39,7 @@ impl Default for RequestDraft {
             method: Method::GET,
             url: String::new(),
             headers: vec![],
-            body: String::new(),
+            body: Method::GET.body_template().to_string(),
         }
     }
 }
