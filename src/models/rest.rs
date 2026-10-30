@@ -12,6 +12,8 @@ pub enum Method {
 }
 
 impl Method {
+    pub const ALL: [Self; 5] = [Self::GET, Self::POST, Self::PUT, Self::PATCH, Self::DELETE];
+
     pub fn body_template(self) -> &'static str {
         match self {
             Method::GET => "{\n  \"id\": 1\n}",
@@ -25,12 +27,21 @@ impl Method {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RequestDraft {
     pub method: Method,
     pub url: String,
     pub headers: Vec<(String, String)>,
     pub body: String,
+}
+
+impl RequestDraft {
+    pub fn apply_method_template(mut self, previous: Method) {
+        let previous_template = previous.body_template();
+        if self.body.trim().is_empty() || self.body == previous_template {
+            self.body = self.method.body_template().to_string();
+        }
+    }
 }
 
 impl Default for RequestDraft {
