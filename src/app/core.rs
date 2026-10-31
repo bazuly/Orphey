@@ -27,7 +27,9 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Some(result) = self.service.poll(ui.ctx()) {
             match result {
-                Ok(snapshot) => {
+                Ok((draft, snapshot)) => {
+                    self.history
+                        .insert(0, SavedRequest::from_exchange(draft, snapshot.clone()));
                     self.response_snapshot = Some(snapshot);
                     self.status.clear();
                 }

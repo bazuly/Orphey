@@ -1,3 +1,4 @@
+use egui::Response;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -68,7 +69,25 @@ pub struct ResponseSnapshot {
 pub struct SavedRequest {
     pub id: Uuid,
     pub name: String,
-    pub method: Method,
+    pub draft: RequestDraft,
     pub response: ResponseSnapshot,
     pub ms: u64,
+}
+
+impl SavedRequest {
+    pub fn from_exchange(draft: RequestDraft, response: ResponseSnapshot) -> Self {
+        let name = format!("{:?} {}", draft.method, draft.url);
+        let ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        Self {
+            id: Uuid::new_v4(),
+            name,
+            draft,
+            response,
+            ms,
+        }
+    }
 }

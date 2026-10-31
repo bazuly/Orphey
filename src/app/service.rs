@@ -4,13 +4,13 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 pub struct AppService {
     rt: tokio::runtime::Runtime,
-    inflight: Option<Receiver<Result<ResponseSnapshot, Error>>>,
+    inflight: Option<(RequestDraft, Receiver<Result<ResponseSnapshot, Error>>)>,
 }
 
 impl AppService {
     pub fn new() -> Self {
         let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_time()
+            .enable_all()
             .build()
             .expect("tokio rt");
 
@@ -31,25 +31,32 @@ impl AppService {
         // создаем поток и отправляем в него draft
         let (tx, rx) = std::sync::mpsc::channel();
 
+        let sent = draft.clone();
         self.rt.spawn(async move {
             let result = crate::client::send(draft).await;
             let _ = tx.send(result);
-            // анимация ui, что что-то произошло
             ctx.request_repaint();
         });
-        self.inflight = Some(rx);
+        self.inflight = Some((sent, rx));
         true
     }
 
-    pub fn poll(&mut self, ctx: &egui::Context) -> Option<Result<ResponseSnapshot, Error>> {
+    pub fn poll(
+        &mut self,
+        ctx: &egui::Context,
+    ) -> Option<Result<(RequestDraft, ResponseSnapshot), Error>> {
         // берем inflight as_ref с помощью try_recv и проверяем его
         // пришло ли что-то или нет
-        let message = self.inflight.as_ref().map(|rx| rx.try_recv());
+        let message = self.inflight.as_ref().map(|rx| rx.1.try_recv());
 
         match message {
-            Some(Ok(result)) => {
+            Some(Ok(Ok(snapshot))) => {
+                let (draft, _) = self.inflight.take().unwrap();
+                Some(Ok((draft, snapshot)))
+            }
+            Some(Ok(Err(err))) => {
                 self.inflight = None;
-                Some(result)
+                Some(Err(err))
             }
             Some(Err(TryRecvError::Empty)) => {
                 ctx.request_repaint();
