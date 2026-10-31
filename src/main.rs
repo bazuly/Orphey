@@ -1,6 +1,7 @@
 mod app;
 mod client;
 mod error;
+mod infra;
 mod models;
 mod ui;
 
@@ -9,6 +10,6 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "Orphey",
         native_options,
-        Box::new(|_cc| Ok(Box::new(app::core::App::default()))),
+        Box::new(|_cc| Ok(Box::new(app::core::App::new()))),
     )
 }
