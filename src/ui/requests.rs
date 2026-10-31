@@ -1,4 +1,7 @@
-use crate::models::rest::{Method, RequestDraft};
+use crate::{
+    models::rest::{Method, RequestDraft},
+    ui::consts,
+};
 
 pub fn show(ui: &mut egui::Ui, app: &mut crate::app::core::App) {
     egui::CentralPanel::default().show(ui, |ui| {
@@ -31,34 +34,39 @@ fn method_and_url(ui: &mut egui::Ui, draft: &mut RequestDraft) {
         ui.add(egui::TextEdit::singleline(&mut draft.url).desired_width(f32::INFINITY));
     });
 }
-
 fn headers(ui: &mut egui::Ui, headers: &mut Vec<(String, String)>) {
     ui.label("Headers");
     let mut remove_header = None;
-    egui::Grid::new("headers").num_columns(3).show(ui, |ui| {
-        for (index, (name, value)) in headers.iter_mut().enumerate() {
+
+    for (index, (name, value)) in headers.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(name)
-                    .desired_width(160.0)
+                    .desired_width(180.0)
                     .hint_text("Name"),
             );
+            let value_width = (ui.available_width() - 36.0).max(80.0);
             ui.add(
                 egui::TextEdit::singleline(value)
-                    .desired_width(320.0)
+                    .desired_width(value_width)
                     .hint_text("Value"),
             );
             if ui.button("x").clicked() {
                 remove_header = Some(index);
             }
-            ui.end_row();
-        }
-    });
+        });
+    }
+
     if let Some(index) = remove_header {
         headers.remove(index);
     }
-    if ui.button("Add header").clicked() {
-        headers.push((String::new(), String::new()));
-    }
+
+    ui.horizontal(|ui| {
+        if ui.button("Add headers").clicked() {
+            headers.push((String::new(), String::new()));
+        }
+        select_headers(ui, headers);
+    });
 }
 
 fn body(ui: &mut egui::Ui, body: &mut String) {
@@ -75,6 +83,28 @@ fn send(ui: &mut egui::Ui, app: &mut crate::app::core::App) {
         let draft = app.request_draft.clone();
         if app.service.begin(draft, ui.ctx().clone()) {
             app.status = "In progress".to_string();
+        }
+    }
+}
+
+fn select_headers(ui: &mut egui::Ui, headers: &mut Vec<(String, String)>) {
+    let mut picked = None;
+    egui::ComboBox::from_id_salt("header_template")
+        .selected_text("Header template")
+        .show_ui(ui, |ui| {
+            for (name, value) in consts::HEADER_TEMPLATES {
+                if ui.selectable_label(false, *name).clicked() {
+                    picked = Some((*name, *value));
+                }
+            }
+        });
+
+    if let Some((name, value)) = picked {
+        let exists = headers
+            .iter()
+            .any(|(current, _)| current.eq_ignore_ascii_case(name));
+        if !exists {
+            headers.push((name.to_string(), value.to_string()));
         }
     }
 }

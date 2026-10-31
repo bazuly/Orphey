@@ -1,6 +1,6 @@
 use crate::app::service::AppService;
 
-use crate::infra::store::{self, HistoryStore};
+use crate::infra::store::HistoryStore;
 use crate::models::rest::{RequestDraft, ResponseSnapshot, SavedRequest};
 use crate::ui::core::show;
 
