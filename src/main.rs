@@ -3,6 +3,7 @@ mod client;
 mod error;
 mod infra;
 mod models;
+mod room;
 mod ui;
 
 fn main() -> Result<(), eframe::Error> {

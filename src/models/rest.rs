@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::models::utils::now_ms;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Method {
@@ -67,6 +69,7 @@ pub struct ResponseSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedRequest {
     pub id: Uuid,
+    pub room_id: Uuid,
     pub name: String,
     pub draft: RequestDraft,
     pub response: ResponseSnapshot,
@@ -74,19 +77,22 @@ pub struct SavedRequest {
 }
 
 impl SavedRequest {
-    pub fn from_exchange(draft: RequestDraft, response: ResponseSnapshot) -> Self {
+    pub fn from_exchange(room_id: Uuid, draft: RequestDraft, response: ResponseSnapshot) -> Self {
         let name = format!("{:?} {}", draft.method, draft.url);
-        let ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0);
 
         Self {
             id: Uuid::new_v4(),
+            room_id,
             name,
             draft,
             response,
-            ms,
+            ms: now_ms(),
         }
+    }
+
+    pub fn refresh(&mut self, draft: RequestDraft, response: ResponseSnapshot) {
+        self.draft = draft;
+        self.response = response;
+        self.ms = now_ms();
     }
 }
