@@ -18,7 +18,7 @@ pub static HISTORY_HAS_ROOM: &'static str =
 pub static HISTORY_ADD_ROOM: &'static str =
     "ALTER TABLE history ADD COLUMN room_id TEXT NOT NULL DEFAULT ''";
 
-pub static ROOM_COUNT: &'static str = "SELECT COUNT(*) FROM rooms";
+pub static FIRST_ROOM: &'static str = "SELECT id FROM rooms ORDER BY ms ASC LIMIT 1";
 
 pub static INSERT_ROOM: &'static str = "INSERT INTO rooms (id, name, ms) VALUES (?1, ?2, ?3)";
 

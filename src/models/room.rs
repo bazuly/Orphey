@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::models::utils::now_ms;
+use crate::utils::now_ms;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Room {

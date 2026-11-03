@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::models::utils::now_ms;
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Method {
@@ -74,25 +72,4 @@ pub struct SavedRequest {
     pub draft: RequestDraft,
     pub response: ResponseSnapshot,
     pub ms: u64,
-}
-
-impl SavedRequest {
-    pub fn from_exchange(room_id: Uuid, draft: RequestDraft, response: ResponseSnapshot) -> Self {
-        let name = format!("{:?} {}", draft.method, draft.url);
-
-        Self {
-            id: Uuid::new_v4(),
-            room_id,
-            name,
-            draft,
-            response,
-            ms: now_ms(),
-        }
-    }
-
-    pub fn refresh(&mut self, draft: RequestDraft, response: ResponseSnapshot) {
-        self.draft = draft;
-        self.response = response;
-        self.ms = now_ms();
-    }
 }

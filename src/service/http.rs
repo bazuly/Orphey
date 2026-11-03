@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::models::rest::{RequestDraft, ResponseSnapshot};
+use crate::models::request::{RequestDraft, ResponseSnapshot};
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 pub struct AppService {
@@ -33,7 +33,7 @@ impl AppService {
 
         let sent = draft.clone();
         self.rt.spawn(async move {
-            let result = crate::client::send(draft).await;
+            let result = crate::repository::http::send(draft).await;
             let _ = tx.send(result);
             ctx.request_repaint();
         });

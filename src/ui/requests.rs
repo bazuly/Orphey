@@ -1,11 +1,16 @@
 use crate::{
-    models::rest::{Method, RequestDraft},
+    models::request::{Method, RequestDraft},
     ui::consts,
 };
 
 pub fn show(ui: &mut egui::Ui, app: &mut crate::app::core::App) {
     egui::CentralPanel::default().show(ui, |ui| {
         ui.heading("Request");
+        ui.add(
+            egui::TextEdit::singleline(&mut app.request_name)
+                .desired_width(f32::INFINITY)
+                .hint_text("Name"),
+        );
 
         // previous request template GET by default
         let previous = &app.request_draft.method.clone();
@@ -81,7 +86,7 @@ fn body(ui: &mut egui::Ui, body: &mut String) {
 fn send(ui: &mut egui::Ui, app: &mut crate::app::core::App) {
     if ui.button("Send").clicked() {
         let draft = app.request_draft.clone();
-        if app.service.begin(draft, ui.ctx().clone()) {
+        if app.http.begin(draft, ui.ctx().clone()) {
             app.status = "In progress".to_string();
         }
     }

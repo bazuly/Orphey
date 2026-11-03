@@ -1,10 +1,10 @@
 mod app;
-mod client;
 mod error;
-mod infra;
 mod models;
-mod room;
+mod repository;
+mod service;
 mod ui;
+mod utils;
 
 fn main() -> Result<(), eframe::Error> {
     let native_options = eframe::NativeOptions::default();

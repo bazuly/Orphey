@@ -1,3 +1,2 @@
-pub mod rest;
+pub mod request;
 pub mod room;
-pub mod utils;

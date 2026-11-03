@@ -4,7 +4,7 @@ use crate::error::Error;
 use reqwest::header::{HeaderName, HeaderValue};
 use tokio::time::Instant;
 
-use crate::models::rest::{Method, RequestDraft, ResponseSnapshot};
+use crate::models::request::{Method, RequestDraft, ResponseSnapshot};
 
 pub async fn send(draft: RequestDraft) -> Result<ResponseSnapshot, Error> {
     let client = create_client()?;
