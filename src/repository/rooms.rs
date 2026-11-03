@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use rusqlite::{Connection, params};
+use uuid::Uuid;
 
 use crate::error::Error;
 use crate::models::room::Room;
@@ -49,6 +50,19 @@ impl RoomRepository {
                 sql::INSERT_ROOM,
                 params![room.id.to_string(), room.name, room.ms as i64],
             )
+            .map(|_| ())
+            .map_err(|err| Error::Database(err.to_string()))
+    }
+
+    pub fn delete(&self, room_id: Uuid) -> Result<(), Error> {
+        let id = room_id.to_string();
+        self.conn
+            .execute(sql::DELETE_ROOM_REQUESTS, params![id])
+            .map(|_| ())
+            .map_err(|err| Error::Database(err.to_string()))?;
+
+        self.conn
+            .execute(sql::DELETE_ROOM, params![id])
             .map(|_| ())
             .map_err(|err| Error::Database(err.to_string()))
     }

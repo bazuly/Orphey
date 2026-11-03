@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 use crate::error::Error;
 use crate::models::room::Room;
 use crate::repository::rooms::RoomRepository;
@@ -24,5 +26,12 @@ impl RoomService {
             repo.insert(&room)?;
         }
         Ok(room)
+    }
+
+    pub fn delete(&self, id: Uuid) -> Result<(), Error> {
+        match &self.repo {
+            Some(repo) => repo.delete(id),
+            None => Ok(()),
+        }
     }
 }

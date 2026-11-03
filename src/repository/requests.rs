@@ -96,4 +96,6 @@ impl RequestRepository {
             .map(|_| ())
             .map_err(|err| Error::Database(err.to_string()))
     }
+
+    // pub fn delete
 }

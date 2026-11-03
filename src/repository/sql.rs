@@ -33,3 +33,7 @@ pub static INSERT_REQ: &'static str =
 
 pub static UPDATE_REQ: &'static str =
     "UPDATE history SET name = ?2, ms = ?3, draft = ?4, response = ?5 WHERE id = ?1";
+
+pub static DELETE_ROOM_REQUESTS: &'static str = "DELETE FROM history WHERE room_id = ?1";
+
+pub static DELETE_ROOM: &'static str = "DELETE FROM rooms WHERE id = ?1";

@@ -39,6 +39,7 @@ fn method_and_url(ui: &mut egui::Ui, draft: &mut RequestDraft) {
         ui.add(egui::TextEdit::singleline(&mut draft.url).desired_width(f32::INFINITY));
     });
 }
+
 fn headers(ui: &mut egui::Ui, headers: &mut Vec<(String, String)>) {
     ui.label("Headers");
     let mut remove_header = None;

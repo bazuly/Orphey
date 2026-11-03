@@ -32,9 +32,9 @@ impl App {
             Err(err) => (None, err.to_string()),
         };
 
-        let rooms_svc = RoomService::new(conn.as_ref().map(|conn| RoomRepository::new(conn.clone())));
-        let requests_svc =
-            RequestService::new(conn.map(|conn| RequestRepository::new(conn)));
+        let rooms_svc =
+            RoomService::new(conn.as_ref().map(|conn| RoomRepository::new(conn.clone())));
+        let requests_svc = RequestService::new(conn.map(|conn| RequestRepository::new(conn)));
 
         let rooms = match rooms_svc.list() {
             Ok(rooms) => rooms,
@@ -93,6 +93,26 @@ impl App {
                 self.open_room(room.id);
             }
             Err(err) => self.status = err.to_string(),
+        }
+    }
+
+    pub fn delete_room(&mut self, id: Uuid) {
+        if self.rooms.len() <= 1 {
+            self.status = "Keep at least one room alive".to_string();
+            return;
+        }
+
+        if let Err(err) = self.rooms_svc.delete(id) {
+            self.status = err.to_string();
+            return;
+        }
+
+        self.rooms.retain(|room| room.id != id);
+
+        if self.current_room == id {
+            if let Some(next) = self.rooms.first() {
+                self.open_room(next.id);
+            }
         }
     }
 }
