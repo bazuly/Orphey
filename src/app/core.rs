@@ -115,6 +115,20 @@ impl App {
             }
         }
     }
+
+    pub fn delete_request(&mut self, id: Uuid) {
+        if let Err(err) = self.requests_svc.delete(id) {
+            self.status = err.to_string();
+            return;
+        }
+        self.history.retain(|saved| saved.id != id);
+        if self.selected_id == Some(id) {
+            self.selected_id = None;
+            self.request_name.clear();
+            self.request_draft = RequestDraft::default();
+            self.response_snapshot = None;
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -123,7 +137,7 @@ impl eframe::App for App {
             match result {
                 Ok((draft, snapshot)) => {
                     let selected = self.selected_id;
-                    let saved = self.requests_svc.save(
+                    let saved = self.requests_svc.create(
                         self.current_room,
                         selected,
                         &self.request_name,

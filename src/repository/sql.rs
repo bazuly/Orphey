@@ -37,3 +37,5 @@ pub static UPDATE_REQ: &'static str =
 pub static DELETE_ROOM_REQUESTS: &'static str = "DELETE FROM history WHERE room_id = ?1";
 
 pub static DELETE_ROOM: &'static str = "DELETE FROM rooms WHERE id = ?1";
+
+pub static DELETE_REQUEST: &'static str = "DELETE FROM history WHERE id = ?1";

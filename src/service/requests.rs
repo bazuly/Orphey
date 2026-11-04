@@ -2,8 +2,8 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::models::request::{RequestDraft, ResponseSnapshot, SavedRequest};
-use crate::utils::now_ms;
 use crate::repository::requests::RequestRepository;
+use crate::utils::now_ms;
 
 pub struct RequestService {
     repo: Option<RequestRepository>,
@@ -21,7 +21,7 @@ impl RequestService {
         }
     }
 
-    pub fn save(
+    pub fn create(
         &self,
         room_id: Uuid,
         selected_id: Option<Uuid>,
@@ -56,6 +56,13 @@ impl RequestService {
         }
 
         Ok(saved)
+    }
+
+    pub fn delete(&self, request_id: Uuid) -> Result<(), Error> {
+        match &self.repo {
+            Some(repo) => repo.delete(request_id),
+            None => Ok(()),
+        }
     }
 }
 

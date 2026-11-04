@@ -97,5 +97,11 @@ impl RequestRepository {
             .map_err(|err| Error::Database(err.to_string()))
     }
 
-    // pub fn delete
+    pub fn delete(&self, request_id: Uuid) -> Result<(), Error> {
+        let id = request_id.to_string();
+        self.conn
+            .execute(sql::DELETE_REQUEST, params![id])
+            .map(|_| ())
+            .map_err(|err| Error::Database(err.to_string()))
+    }
 }

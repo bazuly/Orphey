@@ -2,11 +2,15 @@ use crate::app::core::App;
 
 pub fn show(ui: &mut egui::Ui, app: &mut App) {
     egui::Panel::left("history")
-        .exact_size(280.0)
+        .default_size(280.0)
+        .min_size(180.0)
+        .max_size(480.0)
         .show(ui, |ui| {
-            rooms(ui, app);
-            ui.separator();
-            requests(ui, app);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                rooms(ui, app);
+                ui.separator();
+                requests(ui, app);
+            });
         });
 }
 
@@ -60,13 +64,22 @@ fn requests(ui: &mut egui::Ui, app: &mut App) {
     }
 
     let mut chosen = None;
+    let mut delete_id = None;
+
     for saved in &app.history {
-        let selected = app.selected_id == Some(saved.id);
-        if ui.selectable_label(selected, &saved.name).clicked() {
-            chosen = Some(saved.clone());
-        }
+        ui.horizontal(|ui| {
+            let selected = app.selected_id == Some(saved.id);
+            if ui.selectable_label(selected, &saved.name).clicked() {
+                chosen = Some(saved.clone());
+            }
+            if ui.button("x").clicked() {
+                delete_id = Some(saved.id);
+            }
+        });
     }
-    if let Some(saved) = chosen {
+    if let Some(id) = delete_id {
+        app.delete_request(id);
+    } else if let Some(saved) = chosen {
         app.selected_id = Some(saved.id);
         app.request_name = saved.name;
         app.request_draft = saved.draft;
