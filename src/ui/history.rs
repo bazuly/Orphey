@@ -31,6 +31,18 @@ fn rooms(ui: &mut egui::Ui, app: &mut App) {
         }
     });
 
+    ui.label("Base URL");
+    ui.horizontal(|ui| {
+        ui.add(
+            egui::TextEdit::singleline(&mut app.room_base_url)
+                .desired_width(f32::INFINITY)
+                .hint_text("https://api.example.com"),
+        );
+        if ui.button("Save").clicked() {
+            app.save_room_base_url();
+        }
+    });
+
     let mut switch_to = None;
     let mut delete_id = None;
 

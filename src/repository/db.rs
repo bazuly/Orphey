@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::error::Error;
 use crate::models::room::Room;
@@ -28,8 +28,17 @@ fn migrate(conn: &Connection) -> Result<(), Error> {
         .query_row(sql::HISTORY_HAS_ROOM, [], |row| row.get(0))
         .map_err(|err| Error::Database(err.to_string()))?;
 
+    let has_base_url: i64 = conn
+        .query_row(sql::ROOMS_HAS_BASE_URL, [], |row| row.get(0))
+        .map_err(|err| Error::Database(err.to_string()))?;
+
     if has_room == 0 {
         conn.execute_batch(sql::HISTORY_ADD_ROOM)
+            .map_err(|err| Error::Database(err.to_string()))?;
+    }
+
+    if has_base_url == 0 {
+        conn.execute_batch(sql::ROOMS_ADD_BASE_URL)
             .map_err(|err| Error::Database(err.to_string()))?;
     }
 
@@ -45,7 +54,12 @@ fn migrate(conn: &Connection) -> Result<(), Error> {
             let room = Room::new("General");
             conn.execute(
                 sql::INSERT_ROOM,
-                params![room.id.to_string(), room.name, room.ms as i64],
+                params![
+                    room.id.to_string(),
+                    room.name,
+                    room.base_url,
+                    room.ms as i64
+                ],
             )
             .map_err(|err| Error::Database(err.to_string()))?;
             room.id.to_string()

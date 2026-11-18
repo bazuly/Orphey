@@ -1,24 +1,27 @@
 use std::time::Duration;
 
 use crate::error::Error;
+use crate::utils::resolve_url;
 use reqwest::header::{HeaderName, HeaderValue};
 use tokio::time::Instant;
 
 use crate::models::request::{Method, RequestDraft, ResponseSnapshot};
 
-pub async fn send(draft: RequestDraft) -> Result<ResponseSnapshot, Error> {
+pub async fn send(draft: RequestDraft, base_url: &str) -> Result<ResponseSnapshot, Error> {
     let client = create_client()?;
-    let request = build_request(draft, &client)?;
+    let request = build_request(draft, base_url, &client)?;
 
     execute(&client, request).await
 }
 
 pub fn build_request(
     draft: RequestDraft,
+    base_url: &str,
     client: &reqwest::Client,
 ) -> Result<reqwest::Request, Error> {
-    // проверяем url из draft на валидность
-    let url = reqwest::Url::parse(&draft.url).map_err(|err| Error::Url(err.to_string()))?;
+    // validate url
+    let full_url = resolve_url(base_url, &draft.url)?;
+    let url = reqwest::Url::parse(&full_url).map_err(|err| Error::Url(err.to_string()))?;
 
     let mut builder = client.request(http_method(&draft.method), url);
 

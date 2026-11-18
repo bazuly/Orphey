@@ -21,7 +21,7 @@ impl AppService {
     // Статус сервис не пишет: он не знает про окно. poll отдаёт None,
     // пока ответа нет, и сам просит новый кадр.
 
-    pub fn begin(&mut self, draft: RequestDraft, ctx: egui::Context) -> bool {
+    pub fn begin(&mut self, draft: RequestDraft, base_url: String, ctx: egui::Context) -> bool {
         // если уже что-то отправили
         // то возвращаем false
         if self.inflight.is_some() {
@@ -33,7 +33,7 @@ impl AppService {
 
         let sent = draft.clone();
         self.rt.spawn(async move {
-            let result = crate::repository::http::send(draft).await;
+            let result = crate::repository::http::send(draft, &base_url).await;
             let _ = tx.send(result);
             ctx.request_repaint();
         });

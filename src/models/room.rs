@@ -7,6 +7,7 @@ use crate::utils::now_ms;
 pub struct Room {
     pub id: Uuid,
     pub name: String,
+    pub base_url: String,
     pub ms: u64,
 }
 
@@ -15,6 +16,7 @@ impl Room {
         Self {
             id: Uuid::new_v4(),
             name: name.into(),
+            base_url: String::new(),
             ms: now_ms(),
         }
     }

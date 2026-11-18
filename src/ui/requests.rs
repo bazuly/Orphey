@@ -87,7 +87,8 @@ fn body(ui: &mut egui::Ui, body: &mut String) {
 fn send(ui: &mut egui::Ui, app: &mut crate::app::core::App) {
     if ui.button("Send").clicked() {
         let draft = app.request_draft.clone();
-        if app.http.begin(draft, ui.ctx().clone()) {
+        let base_url = app.room_base_url.clone();
+        if app.http.begin(draft, base_url, ui.ctx().clone()) {
             app.status = "In progress".to_string();
         }
     }

@@ -18,6 +18,7 @@ pub struct App {
     pub http: AppService,
     pub request_name: String,
     pub room_draft: String,
+    pub room_base_url: String,
     pub rooms: Vec<Room>,
     pub current_room: Uuid,
     pub selected_id: Option<Uuid>,
@@ -44,6 +45,12 @@ impl App {
             }
         };
         let current_room = rooms.first().map(|room| room.id).unwrap_or_else(Uuid::nil);
+        let room_base_url = rooms
+            .iter()
+            .find(|room| room.id == current_room)
+            .map(|room| room.base_url.clone())
+            .unwrap_or_default();
+
         let history = match requests_svc.list(current_room) {
             Ok(history) => history,
             Err(err) => {
@@ -58,6 +65,7 @@ impl App {
             request_draft: RequestDraft::default(),
             request_name: String::new(),
             room_draft: String::new(),
+            room_base_url,
             response_snapshot: None,
             history,
             status,
@@ -76,6 +84,12 @@ impl App {
         self.request_name.clear();
         self.request_draft = RequestDraft::default();
         self.response_snapshot = None;
+        self.room_base_url = self
+            .rooms
+            .iter()
+            .find(|room| room.id == id)
+            .map(|room| room.base_url.clone())
+            .unwrap_or_default();
 
         match self.requests_svc.list(id) {
             Ok(history) => self.history = history,
@@ -128,6 +142,26 @@ impl App {
             self.request_draft = RequestDraft::default();
             self.response_snapshot = None;
         }
+    }
+
+    pub fn save_room_base_url(&mut self) {
+        let base_url = self.room_base_url.trim().to_string();
+        if let Err(err) = self
+            .rooms_svc
+            .set_base_url(self.current_room, base_url.clone())
+        {
+            self.status = err.to_string();
+            return;
+        }
+        if let Some(room) = self
+            .rooms
+            .iter_mut()
+            .find(|room| room.id == self.current_room)
+        {
+            room.base_url = base_url.clone();
+        }
+        self.room_base_url = base_url;
+        self.status = "Base URL saved".to_string();
     }
 }
 

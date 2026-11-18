@@ -34,4 +34,11 @@ impl RoomService {
             None => Ok(()),
         }
     }
+
+    pub fn set_base_url(&self, room_id: Uuid, base_url: String) -> Result<(), Error> {
+        match &self.repo {
+            Some(repo) => repo.update_base_url(room_id, &base_url),
+            None => Ok(()),
+        }
+    }
 }

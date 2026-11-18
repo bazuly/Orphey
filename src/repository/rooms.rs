@@ -27,17 +27,19 @@ impl RoomRepository {
                 Ok((
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)? as u64,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)? as u64,
                 ))
             })
             .map_err(|err| Error::Database(err.to_string()))?;
 
         rows.map(|row| {
-            let (id, name, ms) = row.map_err(|err| Error::Database(err.to_string()))?;
+            let (id, name, base_url, ms) = row.map_err(|err| Error::Database(err.to_string()))?;
 
             Ok(Room {
                 id: uuid::Uuid::parse_str(&id).map_err(|err| Error::Database(err.to_string()))?,
                 name,
+                base_url,
                 ms,
             })
         })
@@ -48,7 +50,22 @@ impl RoomRepository {
         self.conn
             .execute(
                 sql::INSERT_ROOM,
-                params![room.id.to_string(), room.name, room.ms as i64],
+                params![
+                    room.id.to_string(),
+                    room.name,
+                    room.base_url,
+                    room.ms as i64
+                ],
+            )
+            .map(|_| ())
+            .map_err(|err| Error::Database(err.to_string()))
+    }
+
+    pub fn update_base_url(&self, room_id: Uuid, base_url: &str) -> Result<(), Error> {
+        self.conn
+            .execute(
+                sql::UPDATE_ROOM_BASE_URL,
+                params![room_id.to_string(), base_url],
             )
             .map(|_| ())
             .map_err(|err| Error::Database(err.to_string()))
