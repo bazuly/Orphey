@@ -18,6 +18,7 @@ const defaultDraft = (): RequestDraft => ({
   body: '{\n  "id": 1\n}',
 });
 
+// TODO причесать тут все
 function methodBodyTemplate(method: HttpMethod): string {
   switch (method) {
     case "get":
@@ -160,10 +161,6 @@ export default function App() {
   };
 
   const removeRoom = async (roomId: string) => {
-    if (rooms.length <= 1) {
-      setStatus("Keep at least one room");
-      return;
-    }
     try {
       await api.deleteRoom(roomId);
       const next = rooms.filter((r) => r.id !== roomId);

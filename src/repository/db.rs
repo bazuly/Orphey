@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::error::Error;
-use crate::models::room::Room;
 use crate::repository::sql;
 
 pub type Db = Arc<Mutex<Connection>>;
@@ -49,23 +48,8 @@ fn migrate(conn: &Connection) -> Result<(), Error> {
         .optional()
         .map_err(|err| Error::Database(err.to_string()))?;
 
-    // если нет комнат - создаем ее
-    let room_id = match first_room {
-        Some(id) => id,
-        None => {
-            let room = Room::new("General");
-            conn.execute(
-                sql::INSERT_ROOM,
-                params![
-                    room.id.to_string(),
-                    room.name,
-                    room.base_url,
-                    room.ms as i64
-                ],
-            )
-            .map_err(|err| Error::Database(err.to_string()))?;
-            room.id.to_string()
-        }
+    let Some(room_id) = first_room else {
+        return Ok(());
     };
 
     conn.execute(sql::ATTACH_ORPHANS, params![room_id])
