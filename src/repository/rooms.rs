@@ -1,24 +1,31 @@
-use std::rc::Rc;
+use std::sync::MutexGuard;
 
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 use crate::error::Error;
 use crate::models::room::Room;
 use crate::repository::sql;
+use crate::repository::db::Db;
 
 pub struct RoomRepository {
-    conn: Rc<Connection>,
+    conn: Db,
 }
 
 impl RoomRepository {
-    pub fn new(conn: Rc<Connection>) -> Self {
+    pub fn new(conn: Db) -> Self {
         Self { conn }
     }
 
+    fn lock_conn(&self) -> Result<MutexGuard<'_, Connection>, Error> {
+        self.conn
+            .lock()
+            .map_err(|_| Error::Database("database lock poisoned".into()))
+    }
+
     pub fn list(&self) -> Result<Vec<Room>, Error> {
-        let mut stmt = self
-            .conn
+        let conn = self.lock_conn()?;
+        let mut stmt = conn
             .prepare(sql::LIST_ROOMS)
             .map_err(|err| Error::Database(err.to_string()))?;
 
@@ -47,39 +54,36 @@ impl RoomRepository {
     }
 
     pub fn insert(&self, room: &Room) -> Result<(), Error> {
-        self.conn
-            .execute(
-                sql::INSERT_ROOM,
-                params![
-                    room.id.to_string(),
-                    room.name,
-                    room.base_url,
-                    room.ms as i64
-                ],
-            )
-            .map(|_| ())
-            .map_err(|err| Error::Database(err.to_string()))
+        let conn = self.lock_conn()?;
+        conn.execute(
+            sql::INSERT_ROOM,
+            params![
+                room.id.to_string(),
+                room.name,
+                room.base_url,
+                room.ms as i64
+            ],
+        )
+        .map(|_| ())
+        .map_err(|err| Error::Database(err.to_string()))
     }
 
     pub fn update_base_url(&self, room_id: Uuid, base_url: &str) -> Result<(), Error> {
-        self.conn
-            .execute(
-                sql::UPDATE_ROOM_BASE_URL,
-                params![room_id.to_string(), base_url],
-            )
-            .map(|_| ())
-            .map_err(|err| Error::Database(err.to_string()))
+        let conn = self.lock_conn()?;
+        conn.execute(
+            sql::UPDATE_ROOM_BASE_URL,
+            params![room_id.to_string(), base_url],
+        )
+        .map(|_| ())
+        .map_err(|err| Error::Database(err.to_string()))
     }
 
     pub fn delete(&self, room_id: Uuid) -> Result<(), Error> {
+        let conn = self.lock_conn()?;
         let id = room_id.to_string();
-        self.conn
-            .execute(sql::DELETE_ROOM_REQUESTS, params![id])
-            .map(|_| ())
+        conn.execute(sql::DELETE_ROOM_REQUESTS, params![id])
             .map_err(|err| Error::Database(err.to_string()))?;
-
-        self.conn
-            .execute(sql::DELETE_ROOM, params![id])
+        conn.execute(sql::DELETE_ROOM, params![id])
             .map(|_| ())
             .map_err(|err| Error::Database(err.to_string()))
     }

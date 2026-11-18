@@ -1,11 +1,18 @@
+[workspace]
+members = ["src-tauri"]
+resolver = "2"
+
 [package]
 name = "orphey"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+# Запуск desktop: из корня `cargo run -p orphey-desktop` или `cd src-tauri && cargo tauri dev`
 
 [dependencies]
-eframe = "0.37.0"
-egui = "0.37.0"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2.0.21"

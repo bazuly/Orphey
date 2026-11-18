@@ -1,24 +1,31 @@
-use std::rc::Rc;
+use std::sync::{MutexGuard};
 
-use rusqlite::{Connection, params};
 use uuid::Uuid;
 
 use crate::error::Error;
 use crate::models::request::SavedRequest;
+use crate::repository::db::Db;
 use crate::repository::sql;
+use rusqlite::params;
 
 pub struct RequestRepository {
-    conn: Rc<Connection>,
+    conn: Db,
 }
 
 impl RequestRepository {
-    pub fn new(conn: Rc<Connection>) -> Self {
+    pub fn new(conn: Db) -> Self {
         Self { conn }
     }
 
+    fn lock_conn(&self) -> Result<MutexGuard<'_, rusqlite::Connection>, Error> {
+        self.conn
+            .lock()
+            .map_err(|_| Error::Database("database lock poisoned".into()))
+    }
+
     pub fn list(&self, room_id: Uuid) -> Result<Vec<SavedRequest>, Error> {
-        let mut stmt = self
-            .conn
+        let conn = self.lock_conn()?;
+        let mut stmt = conn
             .prepare(sql::RETRIEVE_SAVED_REQ)
             .map_err(|err| Error::Database(err.to_string()))?;
 
@@ -55,52 +62,52 @@ impl RequestRepository {
     }
 
     pub fn insert(&self, saved: &SavedRequest) -> Result<(), Error> {
+        let conn = self.lock_conn()?;
         let draft =
             serde_json::to_string(&saved.draft).map_err(|err| Error::Database(err.to_string()))?;
         let response = serde_json::to_string(&saved.response)
             .map_err(|err| Error::Database(err.to_string()))?;
 
-        self.conn
-            .execute(
-                sql::INSERT_REQ,
-                params![
-                    saved.id.to_string(),
-                    saved.name,
-                    saved.ms as i64,
-                    draft,
-                    response,
-                    saved.room_id.to_string()
-                ],
-            )
-            .map(|_| ())
-            .map_err(|err| Error::Database(err.to_string()))
+        conn.execute(
+            sql::INSERT_REQ,
+            params![
+                saved.id.to_string(),
+                saved.name,
+                saved.ms as i64,
+                draft,
+                response,
+                saved.room_id.to_string()
+            ],
+        )
+        .map(|_| ())
+        .map_err(|err| Error::Database(err.to_string()))
     }
 
     pub fn update(&self, saved: &SavedRequest) -> Result<(), Error> {
+        let conn = self.lock_conn()?;
         let draft =
             serde_json::to_string(&saved.draft).map_err(|err| Error::Database(err.to_string()))?;
         let response = serde_json::to_string(&saved.response)
             .map_err(|err| Error::Database(err.to_string()))?;
 
-        self.conn
-            .execute(
-                sql::UPDATE_REQ,
-                params![
-                    saved.id.to_string(),
-                    saved.name,
-                    saved.ms as i64,
-                    draft,
-                    response
-                ],
-            )
-            .map(|_| ())
-            .map_err(|err| Error::Database(err.to_string()))
+        conn.execute(
+            sql::UPDATE_REQ,
+            params![
+                saved.id.to_string(),
+                saved.name,
+                saved.ms as i64,
+                draft,
+                response
+            ],
+        )
+        .map(|_| ())
+        .map_err(|err| Error::Database(err.to_string()))
     }
 
     pub fn delete(&self, request_id: Uuid) -> Result<(), Error> {
+        let conn = self.lock_conn()?;
         let id = request_id.to_string();
-        self.conn
-            .execute(sql::DELETE_REQUEST, params![id])
+        conn.execute(sql::DELETE_REQUEST, params![id])
             .map(|_| ())
             .map_err(|err| Error::Database(err.to_string()))
     }

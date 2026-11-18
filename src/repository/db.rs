@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
@@ -6,7 +6,9 @@ use crate::error::Error;
 use crate::models::room::Room;
 use crate::repository::sql;
 
-pub fn open() -> Result<Rc<Connection>, Error> {
+pub type Db = Arc<Mutex<Connection>>;
+
+pub fn open() -> Result<Db, Error> {
     let path = dirs::data_dir()
         .ok_or_else(|| Error::Database("data dir not found".into()))?
         .join("Orphey");
@@ -20,7 +22,7 @@ pub fn open() -> Result<Rc<Connection>, Error> {
         .map_err(|err| Error::Database(err.to_string()))?;
 
     migrate(&conn)?;
-    Ok(Rc::new(conn))
+    Ok(Arc::new(Mutex::new(conn)))
 }
 
 fn migrate(conn: &Connection) -> Result<(), Error> {
