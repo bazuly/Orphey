@@ -101,8 +101,17 @@ impl App {
     }
 
     pub fn create_room(&mut self, name: String) {
+        let base_url = self.room_base_url.trim().to_string();
+
         match self.rooms_svc.create(name) {
-            Ok(room) => {
+            Ok(mut room) => {
+                room.base_url = base_url.clone();
+
+                if let Err(err) = self.rooms_svc.set_base_url(room.id, base_url) {
+                    self.status = err.to_string();
+                    return;
+                }
+
                 self.rooms.push(room.clone());
                 self.open_room(room.id);
             }
