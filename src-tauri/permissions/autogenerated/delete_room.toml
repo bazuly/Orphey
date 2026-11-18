@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-delete-room"
+description = "Enables the delete_room command without any pre-configured scope."
+commands.allow = ["delete_room"]
+
+[[permission]]
+identifier = "deny-delete-room"
+description = "Denies the delete_room command without any pre-configured scope."
+commands.deny = ["delete_room"]

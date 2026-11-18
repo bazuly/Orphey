@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "default",
+  "description": "Default capability for Orphey",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-bootstrap",
+    "allow-list-requests",
+    "allow-create-room",
+    "allow-delete-room",
+    "allow-set-room-base-url",
+    "allow-delete-request",
+    "allow-send-request"
+  ]
+}
