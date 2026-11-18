@@ -20,8 +20,10 @@ impl RoomService {
         }
     }
 
-    pub fn create(&self, name: String) -> Result<Room, Error> {
-        let room = Room::new(name);
+    pub fn create(&self, name: String, base_url: String) -> Result<Room, Error> {
+        let mut room = Room::new(name);
+        room.base_url = base_url.trim().to_string();
+
         if let Some(repo) = &self.repo {
             repo.insert(&room)?;
         }
