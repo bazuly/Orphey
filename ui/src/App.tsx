@@ -11,6 +11,17 @@ const HEADER_TEMPLATES: [string, string][] = [
   ["User-Agent", "Orphey"],
 ];
 
+type QueryParam = { name: string; value: string };
+
+type EditorTab = {
+  key: string;
+  savedId: string | null;
+  roomId: string;
+  name: string;
+  draft: RequestDraft;
+  response: ResponseSnapshot | null;
+};
+
 const defaultDraft = (): RequestDraft => ({
   method: "get",
   url: "",
@@ -18,7 +29,6 @@ const defaultDraft = (): RequestDraft => ({
   body: '{\n  "id": 1\n}',
 });
 
-// TODO причесать тут все
 function methodBodyTemplate(method: HttpMethod): string {
   switch (method) {
     case "get":
@@ -38,31 +48,93 @@ function requestLabel(saved: SavedRequest): string {
   return saved.name.trim() || saved.draft.url.trim() || "Untitled";
 }
 
+function tabLabel(tab: EditorTab): string {
+  return tab.name.trim() || tab.draft.url.trim() || "Untitled";
+}
+
+function splitUrl(url: string): { path: string; params: QueryParam[] } {
+  const q = url.indexOf("?");
+  if (q < 0) return { path: url, params: [] };
+  const path = url.slice(0, q);
+  const raw = url.slice(q + 1);
+  if (!raw) return { path, params: [] };
+  const params = raw.split("&").map((part) => {
+    const eq = part.indexOf("=");
+    if (eq < 0) return { name: decodeURIComponent(part), value: "" };
+    return {
+      name: decodeURIComponent(part.slice(0, eq)),
+      value: decodeURIComponent(part.slice(eq + 1)),
+    };
+  });
+  return { path, params };
+}
+
+function joinUrl(path: string, params: QueryParam[]): string {
+  const query = params
+    .filter((param) => param.name.trim() || param.value.trim())
+    .map((param) => `${encodeURIComponent(param.name)}=${encodeURIComponent(param.value)}`)
+    .join("&");
+  return query ? `${path}?${query}` : path;
+}
+
+function statusText(code: number): string {
+  const names: Record<number, string> = {
+    200: "OK",
+    201: "Created",
+    204: "No Content",
+    301: "Moved",
+    302: "Found",
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    409: "Conflict",
+    422: "Unprocessable",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+    503: "Unavailable",
+  };
+  return names[code] ? `${code} ${names[code]}` : String(code);
+}
+
+function formatElapsed(ms: number): string {
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${ms} ms`;
+}
+
+function formatSize(text: string): string {
+  const bytes = new TextEncoder().encode(text).length;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function App() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [requests, setRequests] = useState<SavedRequest[]>([]);
   const [currentRoomId, setCurrentRoomId] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [openRooms, setOpenRooms] = useState<string[]>([]);
+  const [tabs, setTabs] = useState<EditorTab[]>([]);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
 
   const [roomNameDraft, setRoomNameDraft] = useState("");
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [query, setQuery] = useState("");
   const [roomBaseUrl, setRoomBaseUrl] = useState("");
 
-  const [requestName, setRequestName] = useState("");
-  const [draft, setDraft] = useState<RequestDraft>(defaultDraft);
-  const [response, setResponse] = useState<ResponseSnapshot | null>(null);
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [booting, setBooting] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
-  const [editorTab, setEditorTab] = useState<"body" | "headers">("body");
+  const [editorTab, setEditorTab] = useState<"params" | "body" | "headers">("params");
   const [responseTab, setResponseTab] = useState<"body" | "headers">("body");
 
   const currentRoom = useMemo(
-    () => rooms.find((r) => r.id === currentRoomId),
+    () => rooms.find((room) => room.id === currentRoomId),
     [rooms, currentRoomId],
   );
+  const roomTabs = tabs.filter((tab) => tab.roomId === currentRoomId);
+  const active = roomTabs.find((tab) => tab.key === activeKey) ?? null;
 
   const needle = query.trim().toLowerCase();
   const visibleRooms = rooms.filter((room) => {
@@ -84,6 +156,19 @@ export default function App() {
     );
   });
 
+  const updateActive = (patch: (tab: EditorTab) => EditorTab) => {
+    if (!active) return;
+    const key = active.key;
+    setTabs((prev) => prev.map((tab) => (tab.key === key ? patch(tab) : tab)));
+  };
+
+  const setDraft = (next: RequestDraft | ((prev: RequestDraft) => RequestDraft)) => {
+    updateActive((tab) => ({
+      ...tab,
+      draft: typeof next === "function" ? next(tab.draft) : next,
+    }));
+  };
+
   const loadRequests = useCallback(async (roomId: string) => {
     if (!roomId) {
       setRequests([]);
@@ -103,8 +188,11 @@ export default function App() {
     setCurrentRoomId(data.current_room_id);
     setRequests(data.requests);
     if (data.error) setStatus(data.error);
-    const room = data.rooms.find((r) => r.id === data.current_room_id);
-    if (room) setRoomBaseUrl(room.base_url);
+    const room = data.rooms.find((item) => item.id === data.current_room_id);
+    if (room) {
+      setRoomBaseUrl(room.base_url);
+      setOpenRooms([room.id]);
+    }
   }, []);
 
   useEffect(() => {
@@ -129,14 +217,26 @@ export default function App() {
     };
   }, [refreshBootstrap]);
 
+  const focusRoomTab = (roomId: string) => {
+    setActiveKey((key) => {
+      const current = tabs.find((tab) => tab.key === key);
+      if (current?.roomId === roomId) return key;
+      const last = [...tabs].reverse().find((tab) => tab.roomId === roomId);
+      return last?.key ?? null;
+    });
+  };
+
   const selectRoom = async (room: Room) => {
-    if (room.id === currentRoomId) return;
+    if (room.id === currentRoomId) {
+      setOpenRooms((prev) =>
+        prev.includes(room.id) ? prev.filter((id) => id !== room.id) : [...prev, room.id],
+      );
+      return;
+    }
     setCurrentRoomId(room.id);
     setRoomBaseUrl(room.base_url);
-    setSelectedId(null);
-    setRequestName("");
-    setDraft(defaultDraft());
-    setResponse(null);
+    setOpenRooms((prev) => (prev.includes(room.id) ? prev : [...prev, room.id]));
+    focusRoomTab(room.id);
     await loadRequests(room.id);
   };
 
@@ -149,12 +249,10 @@ export default function App() {
       setRoomNameDraft("");
       setCreatingRoom(false);
       setCurrentRoomId(room.id);
-      setRoomBaseUrl(room.base_url);
-      setSelectedId(null);
-      setRequestName("");
-      setDraft(defaultDraft());
-      setResponse(null);
+      setRoomBaseUrl("");
+      setOpenRooms((prev) => [...prev, room.id]);
       setRequests([]);
+      setActiveKey(null);
     } catch (err) {
       setStatus(String(err));
     }
@@ -163,11 +261,19 @@ export default function App() {
   const removeRoom = async (roomId: string) => {
     try {
       await api.deleteRoom(roomId);
-      const next = rooms.filter((r) => r.id !== roomId);
+      const next = rooms.filter((room) => room.id !== roomId);
       setRooms(next);
+      setTabs((prev) => prev.filter((tab) => tab.roomId !== roomId));
+      setOpenRooms((prev) => prev.filter((id) => id !== roomId));
       if (currentRoomId === roomId) {
         const first = next[0];
         if (first) await selectRoom(first);
+        else {
+          setCurrentRoomId("");
+          setRoomBaseUrl("");
+          setRequests([]);
+          setActiveKey(null);
+        }
       }
     } catch (err) {
       setStatus(String(err));
@@ -181,7 +287,7 @@ export default function App() {
     try {
       await api.setRoomBaseUrl(currentRoomId, base);
       setRooms((prev) =>
-        prev.map((r) => (r.id === currentRoomId ? { ...r, base_url: base } : r)),
+        prev.map((room) => (room.id === currentRoomId ? { ...room, base_url: base } : room)),
       );
       setRoomBaseUrl(base);
     } catch (err) {
@@ -190,24 +296,70 @@ export default function App() {
   };
 
   const openRequest = (saved: SavedRequest) => {
-    setSelectedId(saved.id);
-    setRequestName(saved.name);
-    setDraft(saved.draft);
-    setResponse(saved.response);
+    const found = tabs.find((tab) => tab.savedId === saved.id);
+    if (found) {
+      setActiveKey(found.key);
+      return;
+    }
+    const key = crypto.randomUUID();
+    setTabs((prev) => [
+      ...prev,
+      {
+        key,
+        savedId: saved.id,
+        roomId: saved.room_id,
+        name: saved.name,
+        draft: saved.draft,
+        response: saved.response,
+      },
+    ]);
+    setActiveKey(key);
   };
 
   const newRequest = () => {
-    setSelectedId(null);
-    setRequestName("");
-    setDraft(defaultDraft());
-    setResponse(null);
+    if (!currentRoomId) return;
+    const key = crypto.randomUUID();
+    setTabs((prev) => [
+      ...prev,
+      {
+        key,
+        savedId: null,
+        roomId: currentRoomId,
+        name: "",
+        draft: defaultDraft(),
+        response: null,
+      },
+    ]);
+    setActiveKey(key);
+    setEditorTab("params");
+  };
+
+  const closeTab = (key: string) => {
+    setTabs((prev) => {
+      const roomOnes = prev.filter((tab) => tab.roomId === currentRoomId);
+      const idx = roomOnes.findIndex((tab) => tab.key === key);
+      const next = prev.filter((tab) => tab.key !== key);
+      if (key === activeKey) {
+        const remaining = next.filter((tab) => tab.roomId === currentRoomId);
+        const neighbor = remaining[idx - 1] ?? remaining[idx] ?? null;
+        setActiveKey(neighbor?.key ?? null);
+      }
+      return next;
+    });
   };
 
   const removeRequest = async (id: string) => {
     try {
       await api.deleteRequest(id);
-      setRequests((prev) => prev.filter((r) => r.id !== id));
-      if (selectedId === id) newRequest();
+      setRequests((prev) => prev.filter((saved) => saved.id !== id));
+      setTabs((prev) => {
+        const next = prev.filter((tab) => tab.savedId !== id);
+        if (active?.savedId === id) {
+          const remaining = next.filter((tab) => tab.roomId === currentRoomId);
+          setActiveKey(remaining[remaining.length - 1]?.key ?? null);
+        }
+        return next;
+      });
     } catch (err) {
       setStatus(String(err));
     }
@@ -225,15 +377,12 @@ export default function App() {
   };
 
   const addHeader = () => {
-    setDraft((prev) => ({
-      ...prev,
-      headers: [...prev.headers, ["", ""]],
-    }));
+    setDraft((prev) => ({ ...prev, headers: [...prev.headers, ["", ""]] }));
   };
 
   const addHeaderTemplate = (name: string, value: string) => {
     setDraft((prev) => {
-      if (prev.headers.some(([n]) => n.toLowerCase() === name.toLowerCase())) {
+      if (prev.headers.some(([existing]) => existing.toLowerCase() === name.toLowerCase())) {
         return prev;
       }
       return { ...prev, headers: [...prev.headers, [name, value]] };
@@ -241,33 +390,42 @@ export default function App() {
   };
 
   const send = async () => {
-    if (!currentRoomId || sending) return;
+    if (!currentRoomId || !active || sending) return;
     setSending(true);
     setStatus("");
     const base = roomBaseUrl.trim();
+    const tabKey = active.key;
     try {
       if (!currentRoom || currentRoom.base_url !== base) {
         await api.setRoomBaseUrl(currentRoomId, base);
         setRooms((prev) =>
-          prev.map((r) => (r.id === currentRoomId ? { ...r, base_url: base } : r)),
+          prev.map((room) => (room.id === currentRoomId ? { ...room, base_url: base } : room)),
         );
       }
       const result = await api.sendRequest({
         roomId: currentRoomId,
-        selectedId,
-        name: requestName,
+        selectedId: active.savedId,
+        name: active.name,
         baseUrl: base,
-        draft,
+        draft: active.draft,
       });
-      setResponse(result.snapshot);
       setResponseTab("body");
-      setSelectedId(result.saved.id);
-      setRequestName(result.saved.name);
+      setTabs((prev) =>
+        prev.map((tab) =>
+          tab.key === tabKey
+            ? {
+                ...tab,
+                savedId: result.saved.id,
+                name: result.saved.name,
+                draft: result.saved.draft,
+                response: result.snapshot,
+              }
+            : tab,
+        ),
+      );
       setRequests((prev) => {
-        const exists = prev.some((r) => r.id === result.saved.id);
-        if (exists) {
-          return prev.map((r) => (r.id === result.saved.id ? result.saved : r));
-        }
+        const exists = prev.some((saved) => saved.id === result.saved.id);
+        if (exists) return prev.map((saved) => (saved.id === result.saved.id ? result.saved : saved));
         return [result.saved, ...prev];
       });
     } catch (err) {
@@ -277,8 +435,17 @@ export default function App() {
     }
   };
 
+  const draft = active?.draft ?? defaultDraft();
+  const response = active?.response ?? null;
+  const { path, params } = splitUrl(draft.url);
+  const paramRows = [...params, { name: "", value: "" }];
+  const showBase = Boolean(roomBaseUrl.trim()) && !draft.url.includes("://");
   const statusClass =
     response && response.status >= 200 && response.status < 300 ? "status-ok" : "status-err";
+
+  const writeParams = (pathValue: string, nextParams: QueryParam[]) => {
+    setDraft({ ...draft, url: joinUrl(pathValue, nextParams) });
+  };
 
   if (booting) {
     return (
@@ -291,7 +458,7 @@ export default function App() {
   if (bootError) {
     return (
       <div className="boot">
-        <h2 style={{ marginTop: 0, fontWeight: 600 }}>Не удалось подключиться к backend</h2>
+        <h2>Не удалось подключиться к backend</h2>
         <p>{bootError}</p>
       </div>
     );
@@ -299,32 +466,27 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <span className="logo">Orphey</span>
-        <div className="top-tab">
-          <span className={`method method-${draft.method}`}>{draft.method.toUpperCase()}</span>
-          <input
-            placeholder="Untitled"
-            value={requestName}
-            onChange={(e) => setRequestName(e.target.value)}
-          />
-        </div>
-        <span className="env">{currentRoom?.name}</span>
-      </header>
-
       <div className="app-main">
         <aside className="sidebar">
           <div className="side-title">
             <span>Collections</span>
-            <button
-              type="button"
-              className="icon-btn"
-              title="New collection"
-              onClick={() => setCreatingRoom((open) => !open)}
-            >
-              +
-            </button>
+            <span className="side-actions">
+              <button
+                type="button"
+                className="icon-btn"
+                title="New collection"
+                onClick={() => setCreatingRoom((open) => !open)}
+              >
+                +
+              </button>
+            </span>
           </div>
+          <input
+            className="side-search"
+            placeholder="Search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
           {creatingRoom && (
             <input
               className="ghost-input"
@@ -341,85 +503,121 @@ export default function App() {
               }}
             />
           )}
-          <input
-            className="side-search"
-            placeholder="Search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
 
           <div className="tree">
-            {visibleRooms.map((room) => (
-              <div className="collection" key={room.id}>
-                <div className={`tree-row ${room.id === currentRoomId ? "active" : ""}`}>
-                  <button type="button" className="tree-main" onClick={() => void selectRoom(room)}>
-                    <span className="name">{room.name || "Untitled"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn danger"
-                    title="Delete collection"
-                    onClick={() => void removeRoom(room.id)}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                {room.id === currentRoomId && (
-                  <div className="requests">
-                    <label className="base-line">
-                      <span>base</span>
-                      <input
-                        placeholder="https://api.example.com"
-                        value={roomBaseUrl}
-                        onChange={(e) => setRoomBaseUrl(e.target.value)}
-                        onBlur={() => void saveBaseUrl()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") e.currentTarget.blur();
-                        }}
-                      />
-                    </label>
-                    {visibleRequests.map((saved) => (
-                      <div
-                        key={saved.id}
-                        className={`tree-row ${saved.id === selectedId ? "active" : ""}`}
-                      >
-                        <button
-                          type="button"
-                          className="tree-main"
-                          onClick={() => openRequest(saved)}
-                        >
-                          <span className={`method method-${saved.draft.method}`}>
-                            {saved.draft.method.toUpperCase()}
-                          </span>
-                          <span className="name">{requestLabel(saved)}</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="icon-btn danger"
-                          title="Delete request"
-                          onClick={() => void removeRequest(saved.id)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    <button type="button" className="text-btn" onClick={newRequest}>
-                      + Request
+            {visibleRooms.map((room) => {
+              const open = openRooms.includes(room.id) && room.id === currentRoomId;
+              return (
+                <div className="collection" key={room.id}>
+                  <div className={`tree-row ${room.id === currentRoomId ? "active" : ""}`}>
+                    <button type="button" className="tree-main" onClick={() => void selectRoom(room)}>
+                      <span className="chevron">{open ? "▾" : "▸"}</span>
+                      <span className="name">{room.name || "Untitled"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn danger"
+                      title="Delete collection"
+                      onClick={() => void removeRoom(room.id)}
+                    >
+                      ×
                     </button>
                   </div>
-                )}
-              </div>
-            ))}
+                  {open && (
+                    <div className="requests">
+                      {visibleRequests.map((saved) => (
+                        <div
+                          key={saved.id}
+                          className={`tree-row request ${active?.savedId === saved.id ? "active" : ""}`}
+                        >
+                          <button
+                            type="button"
+                            className="tree-main"
+                            onClick={() => openRequest(saved)}
+                          >
+                            <span className={`method method-${saved.draft.method}`}>
+                              {saved.draft.method.toUpperCase()}
+                            </span>
+                            <span className="name">{requestLabel(saved)}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn danger"
+                            title="Delete request"
+                            onClick={() => void removeRequest(saved.id)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {visibleRooms.length === 0 && <p className="empty">Nothing found</p>}
           </div>
         </aside>
 
         <section className="workspace">
+          <div className="crumb">
+            <span className="crumb-name">{currentRoom?.name || "No collection"}</span>
+            <label className="base-line">
+              <span>baseUrl</span>
+              <input
+                placeholder="https://api.example.com"
+                value={roomBaseUrl}
+                disabled={!currentRoomId}
+                onChange={(e) => setRoomBaseUrl(e.target.value)}
+                onBlur={() => void saveBaseUrl()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="browser-tabs">
+            {roomTabs.map((tab) => (
+              <div key={tab.key} className={`browser-tab ${tab.key === activeKey ? "active" : ""}`}>
+                <div className="tab-main" onClick={() => setActiveKey(tab.key)}>
+                  <span className={`method method-${tab.draft.method}`}>
+                    {tab.draft.method.toUpperCase()}
+                  </span>
+                  {tab.key === activeKey ? (
+                    <input
+                      className="tab-name"
+                      value={tab.name}
+                      placeholder="Untitled"
+                      onChange={(e) =>
+                        updateActive((current) => ({ ...current, name: e.target.value }))
+                      }
+                    />
+                  ) : (
+                    <span className="name">{tabLabel(tab)}</span>
+                  )}
+                </div>
+                <button type="button" className="tab-close" onClick={() => closeTab(tab.key)}>
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="tab-add"
+              title="New request"
+              disabled={!currentRoomId}
+              onClick={newRequest}
+            >
+              +
+            </button>
+          </div>
+
           <div className="urlbar">
             <select
               className={`method-select method-${draft.method}`}
               value={draft.method}
+              disabled={!active}
               onChange={(e) => onMethodChange(e.target.value as HttpMethod)}
             >
               {METHODS.map((method) => (
@@ -428,154 +626,226 @@ export default function App() {
                 </option>
               ))}
             </select>
+            {showBase && <span className="base-chip">{`{{baseUrl}}`}</span>}
             <input
               className="url-input"
-              placeholder="/path or https://…"
+              placeholder="/path"
               value={draft.url}
+              disabled={!active}
               onChange={(e) => setDraft({ ...draft, url: e.target.value })}
               onKeyDown={(e) => {
                 if (e.key === "Enter") void send();
               }}
             />
-            <button type="button" className="send" disabled={sending} onClick={() => void send()}>
+            <button type="button" className="send" disabled={!active || sending} onClick={() => void send()}>
               {sending ? "Sending" : "Send"}
             </button>
           </div>
-
-          <div className="tabs">
-            <button
-              type="button"
-              className={editorTab === "body" ? "active" : ""}
-              onClick={() => setEditorTab("body")}
-            >
-              Body
-            </button>
-            <button
-              type="button"
-              className={editorTab === "headers" ? "active" : ""}
-              onClick={() => setEditorTab("headers")}
-            >
-              Headers{draft.headers.length ? ` ${draft.headers.length}` : ""}
-            </button>
-          </div>
-
-          <div className="editor">
-            {editorTab === "body" ? (
-              <textarea
-                value={draft.body}
-                spellCheck={false}
-                onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-              />
-            ) : (
-              <>
-                <div className="kv kv-head">
-                  <span>Name</span>
-                  <span>Value</span>
-                  <span />
-                </div>
-                {draft.headers.map(([name, value], index) => (
-                  <div className="kv" key={index}>
-                    <input
-                      placeholder="Name"
-                      value={name}
-                      onChange={(e) => {
-                        const headers = [...draft.headers];
-                        headers[index] = [e.target.value, value];
-                        setDraft({ ...draft, headers });
-                      }}
-                    />
-                    <input
-                      placeholder="Value"
-                      value={value}
-                      onChange={(e) => {
-                        const headers = [...draft.headers];
-                        headers[index] = [name, e.target.value];
-                        setDraft({ ...draft, headers });
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="icon-btn danger"
-                      onClick={() =>
-                        setDraft({
-                          ...draft,
-                          headers: draft.headers.filter((_, i) => i !== index),
-                        })
-                      }
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <div className="header-tools">
-                  <button type="button" className="text-btn" onClick={addHeader}>
-                    + Add header
-                  </button>
-                  <select
-                    className="flat-select"
-                    defaultValue=""
-                    onChange={(e) => {
-                      const idx = Number(e.target.value);
-                      if (idx >= 0) {
-                        const [n, v] = HEADER_TEMPLATES[idx];
-                        addHeaderTemplate(n, v);
-                      }
-                      e.target.value = "";
-                    }}
-                  >
-                    <option value="">Template…</option>
-                    {HEADER_TEMPLATES.map(([n], i) => (
-                      <option key={n} value={i}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </div>
           {status && <div className="status-note">{status}</div>}
-        </section>
 
-        <aside className="response">
-          <div className="response-head">
-            <div className="tabs" style={{ border: "none", padding: 0 }}>
-              <button
-                type="button"
-                className={responseTab === "body" ? "active" : ""}
-                onClick={() => setResponseTab("body")}
-              >
-                Response
-              </button>
-              <button
-                type="button"
-                className={responseTab === "headers" ? "active" : ""}
-                onClick={() => setResponseTab("headers")}
-              >
-                Headers
-              </button>
-            </div>
-            {response && (
-              <div className="spacer">
-                <span className={statusClass}>{response.status}</span>
-                <span>{response.elapsed_ms} ms</span>
+          <div className="work-split">
+            <div className="request-pane">
+              <div className="tabs">
+                <button
+                  type="button"
+                  className={editorTab === "params" ? "active" : ""}
+                  onClick={() => setEditorTab("params")}
+                >
+                  Params{params.length ? ` ${params.length}` : ""}
+                </button>
+                <button
+                  type="button"
+                  className={editorTab === "body" ? "active" : ""}
+                  onClick={() => setEditorTab("body")}
+                >
+                  Body
+                </button>
+                <button
+                  type="button"
+                  className={editorTab === "headers" ? "active" : ""}
+                  onClick={() => setEditorTab("headers")}
+                >
+                  Headers{draft.headers.length ? ` ${draft.headers.length}` : ""}
+                </button>
               </div>
-            )}
-          </div>
-          {!response && <p className="empty">Run a request to see the response</p>}
-          {response && responseTab === "body" && <CodeView text={response.body} />}
-          {response && responseTab === "headers" && (
-            <div className="header-list">
-              {response.headers.length === 0 && <p className="empty">No headers</p>}
-              {response.headers.map(([name, value], index) => (
-                <div key={`${name}-${index}`}>
-                  <span className="name">{name}</span>
-                  <span>{value}</span>
-                </div>
-              ))}
+
+              <div className="editor">
+                {!active && <p className="empty">Open a request or press +</p>}
+                {active && editorTab === "params" && (
+                  <>
+                    <div className="kv kv-head params">
+                      <span />
+                      <span>Name</span>
+                      <span>Value</span>
+                      <span />
+                    </div>
+                    {paramRows.map((param, index) => (
+                      <div className="kv params" key={index}>
+                        <input
+                          type="checkbox"
+                          checked={index < params.length}
+                          onChange={(e) => {
+                            if (!e.target.checked) writeParams(path, params.filter((_, i) => i !== index));
+                          }}
+                        />
+                        <input
+                          placeholder="Name"
+                          value={param.name}
+                          onChange={(e) => {
+                            const next = params.map((item) => ({ ...item }));
+                            if (index === params.length) next.push({ name: e.target.value, value: "" });
+                            else next[index] = { ...next[index], name: e.target.value };
+                            writeParams(path, next);
+                          }}
+                        />
+                        <input
+                          placeholder="Value"
+                          value={param.value}
+                          onChange={(e) => {
+                            const next = params.map((item) => ({ ...item }));
+                            if (index === params.length) next.push({ name: "", value: e.target.value });
+                            else next[index] = { ...next[index], value: e.target.value };
+                            writeParams(path, next);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="row-x"
+                          onClick={() => writeParams(path, params.filter((_, i) => i !== index))}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <label className="path-line">
+                      <span>Path</span>
+                      <input
+                        value={path}
+                        placeholder="/"
+                        onChange={(e) => writeParams(e.target.value, params)}
+                      />
+                    </label>
+                  </>
+                )}
+                {active && editorTab === "body" && (
+                  <textarea
+                    value={draft.body}
+                    spellCheck={false}
+                    onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                  />
+                )}
+                {active && editorTab === "headers" && (
+                  <>
+                    <div className="kv kv-head">
+                      <span>Name</span>
+                      <span>Value</span>
+                      <span />
+                    </div>
+                    {draft.headers.map(([name, value], index) => (
+                      <div className="kv" key={index}>
+                        <input
+                          placeholder="Name"
+                          value={name}
+                          onChange={(e) => {
+                            const headers = [...draft.headers];
+                            headers[index] = [e.target.value, value];
+                            setDraft({ ...draft, headers });
+                          }}
+                        />
+                        <input
+                          placeholder="Value"
+                          value={value}
+                          onChange={(e) => {
+                            const headers = [...draft.headers];
+                            headers[index] = [name, e.target.value];
+                            setDraft({ ...draft, headers });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="row-x"
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              headers: draft.headers.filter((_, i) => i !== index),
+                            })
+                          }
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <div className="header-tools">
+                      <button type="button" className="text-btn" onClick={addHeader}>
+                        + Add header
+                      </button>
+                      <select
+                        className="flat-select"
+                        defaultValue=""
+                        onChange={(e) => {
+                          const idx = Number(e.target.value);
+                          if (idx >= 0) {
+                            const [n, v] = HEADER_TEMPLATES[idx];
+                            addHeaderTemplate(n, v);
+                          }
+                          e.target.value = "";
+                        }}
+                      >
+                        <option value="">Template…</option>
+                        {HEADER_TEMPLATES.map(([n], i) => (
+                          <option key={n} value={i}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          )}
-        </aside>
+
+            <aside className="response">
+              <div className="response-head">
+                <div className="tabs plain">
+                  <button
+                    type="button"
+                    className={responseTab === "body" ? "active" : ""}
+                    onClick={() => setResponseTab("body")}
+                  >
+                    Response
+                  </button>
+                  <button
+                    type="button"
+                    className={responseTab === "headers" ? "active" : ""}
+                    onClick={() => setResponseTab("headers")}
+                  >
+                    Headers{response ? ` ${response.headers.length}` : ""}
+                  </button>
+                </div>
+                {response && (
+                  <div className="spacer">
+                    <span className={statusClass}>{statusText(response.status)}</span>
+                    <span>{formatElapsed(response.elapsed_ms)}</span>
+                    <span>{formatSize(response.body)}</span>
+                  </div>
+                )}
+              </div>
+              {!response && <p className="empty">Send a request to see the response</p>}
+              {response && responseTab === "body" && <CodeView text={response.body} />}
+              {response && responseTab === "headers" && (
+                <div className="header-list">
+                  {response.headers.length === 0 && <p className="empty">No headers</p>}
+                  {response.headers.map(([name, value], index) => (
+                    <div key={`${name}-${index}`}>
+                      <span className="name">{name}</span>
+                      <span>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </aside>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -583,14 +853,46 @@ export default function App() {
 
 function CodeView({ text }: { text: string }) {
   const lines = text.length ? text.split("\n") : [""];
+  const looksJson = text.trim().startsWith("{") || text.trim().startsWith("[");
   return (
     <div className="code">
       {lines.map((line, index) => (
         <div className="code-line" key={index}>
           <span className="ln">{index + 1}</span>
-          <span className="src">{line || " "}</span>
+          {looksJson ? <JsonLine line={line} /> : <span className="src">{line || " "}</span>}
         </div>
       ))}
     </div>
+  );
+}
+
+function JsonLine({ line }: { line: string }) {
+  const re =
+    /("(?:\\.|[^"\\])*")(\s*:)?|\b(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b|\b(true|false|null)\b/g;
+  const parts: { text: string; cls?: string }[] = [];
+  let last = 0;
+  for (const match of line.matchAll(re)) {
+    const index = match.index ?? 0;
+    if (index > last) parts.push({ text: line.slice(last, index) });
+    if (match[1] && match[2]) parts.push({ text: match[1], cls: "tok-key" }, { text: match[2] });
+    else if (match[1]) parts.push({ text: match[1], cls: "tok-str" });
+    else if (match[3]) parts.push({ text: match[3], cls: "tok-num" });
+    else if (match[4]) parts.push({ text: match[4], cls: "tok-bool" });
+    last = index + match[0].length;
+  }
+  if (last < line.length) parts.push({ text: line.slice(last) });
+  if (parts.length === 0) parts.push({ text: " " });
+  return (
+    <span className="src">
+      {parts.map((part, index) =>
+        part.cls ? (
+          <span key={index} className={part.cls}>
+            {part.text}
+          </span>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </span>
   );
 }
