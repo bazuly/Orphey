@@ -82,7 +82,7 @@ pub async fn execute(
     })
 }
 
-fn create_client() -> Result<reqwest::Client, Error> {
+pub fn create_client() -> Result<reqwest::Client, Error> {
     // создаем клиента для http запроса
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
