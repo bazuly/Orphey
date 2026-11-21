@@ -70,7 +70,7 @@ fn from_exchange(room_id: Uuid, draft: RequestDraft, response: ResponseSnapshot)
     SavedRequest {
         id: Uuid::new_v4(),
         room_id,
-        name: format!("{:?} {}", draft.method, draft.url),
+        name: draft.url.trim().to_string(),
         draft,
         response,
         ms: now_ms(),

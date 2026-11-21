@@ -44,8 +44,18 @@ function methodBodyTemplate(method: HttpMethod): string {
   }
 }
 
+function displayName(name: string, draft: RequestDraft): string {
+  const custom = name.trim();
+  const prefix = `${draft.method.toUpperCase()} `;
+  if (custom.toUpperCase().startsWith(prefix)) {
+    const rest = custom.slice(prefix.length).trim();
+    if (rest === draft.url.trim()) return rest;
+  }
+  return custom;
+}
+
 function requestLabel(saved: SavedRequest): string {
-  return saved.name.trim() || saved.draft.url.trim() || "Untitled";
+  return displayName(saved.name, saved.draft) || saved.draft.url.trim() || "Untitled";
 }
 
 function tabLabel(tab: EditorTab): string {
@@ -312,7 +322,7 @@ export default function App() {
         key,
         savedId: saved.id,
         roomId: saved.room_id,
-        name: saved.name,
+        name: displayName(saved.name, saved.draft),
         draft: saved.draft,
         response: saved.response,
       },
@@ -485,7 +495,7 @@ export default function App() {
   if (booting) {
     return (
       <div className="boot">
-        <p>Загрузка…</p>
+        <p>Loading…</p>
       </div>
     );
   }
@@ -493,7 +503,7 @@ export default function App() {
   if (bootError) {
     return (
       <div className="boot">
-        <h2>Не удалось подключиться к backend</h2>
+        <h2>Could not reach the backend</h2>
         <p>{bootError}</p>
       </div>
     );
@@ -648,88 +658,89 @@ export default function App() {
             </button>
           </div>
 
-          <div className="urlbar">
-            <select
-              className={`method-select method-${draft.method}`}
-              value={draft.method}
-              disabled={!active}
-              onChange={(e) => onMethodChange(e.target.value as HttpMethod)}
-            >
-              {METHODS.map((method) => (
-                <option key={method} value={method}>
-                  {method.toUpperCase()}
-                </option>
-              ))}
-            </select>
-            {showBase && <span className="base-chip">{`{{baseUrl}}`}</span>}
-            <input
-              className="url-input"
-              placeholder="/path"
-              value={draft.url}
-              disabled={!active}
-              onChange={(e) => setDraft({ ...draft, url: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void send();
-              }}
-            />
-            <button type="button" className="send" disabled={!active || sending || loading} onClick={() => void send()}>
-              {sending ? "Sending" : "Send"}
-            </button>
-          </div>
-          <div className="loadbar">
-            <label>
-              <span>одновременно</span>
+          <div className="request-bar">
+            <div className="urlbar">
+              <select
+                className={`method-select method-${draft.method}`}
+                value={draft.method}
+                disabled={!active}
+                onChange={(e) => onMethodChange(e.target.value as HttpMethod)}
+              >
+                {METHODS.map((method) => (
+                  <option key={method} value={method}>
+                    {method.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+              {showBase && <span className="base-chip">{`{{baseUrl}}`}</span>}
               <input
-                type="number"
-                min={1}
-                max={50}
-                value={concurrency}
-                disabled={!active || loading}
-                onChange={(e) => setConcurrency(Number(e.target.value))}
+                className="url-input"
+                placeholder="/path"
+                value={draft.url}
+                disabled={!active}
+                onChange={(e) => setDraft({ ...draft, url: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void send();
+                }}
               />
-            </label>
-            <label>
-              <span>запросов</span>
-              <input
-                type="number"
-                min={1}
-                max={2000}
-                value={loadTotal}
-                disabled={!active || loading}
-                onChange={(e) => setLoadTotal(Number(e.target.value))}
-              />
-            </label>
-            <button
-              type="button"
-              className="load-run"
-              disabled={!active || sending || loading}
-              onClick={() => void runLoad()}
-            >
-              {loading ? "Идёт прогон" : "Нагрузка"}
-            </button>
-          </div>
-          {loadReport && (
-            <div className="load-report">
-              <span>{loadReport.counted_ok} ok</span>
-              <span>{loadReport.counted_failed} ошибок</span>
-              <span>{loadReport.rps.toFixed(1)} rps</span>
-              <span>min {loadReport.min_ms} ms</span>
-              <span>avg {loadReport.avg_ms} ms</span>
-              <span>p95 {loadReport.p95_ms} ms</span>
-              <span>p99 {loadReport.p99_ms} ms</span>
-              {loadReport.statuses.map(([code, count]) => (
-                <span key={code}>
-                  {code} × {count}
-                </span>
-              ))}
-              {loadReport.errors.map((err) => (
-                <span key={err} className="load-error">
-                  {err}
-                </span>
-              ))}
+              <button
+                type="button"
+                className="load-run"
+                disabled={!active || sending || loading}
+                onClick={() => void runLoad()}
+              >
+                {loading ? "Running" : "Run"}
+              </button>
+              <button type="button" className="send" disabled={!active || sending || loading} onClick={() => void send()}>
+                {sending ? "Sending" : "Send"}
+              </button>
             </div>
-          )}
-          {status && <div className="status-note">{status}</div>}
+            <div className="loadbar">
+              <span className="load-kicker">Load test</span>
+              <label>
+                <span>Concurrent</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={concurrency}
+                  disabled={!active || loading}
+                  onChange={(e) => setConcurrency(Number(e.target.value))}
+                />
+              </label>
+              <label>
+                <span>Requests</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={2000}
+                  value={loadTotal}
+                  disabled={!active || loading}
+                  onChange={(e) => setLoadTotal(Number(e.target.value))}
+                />
+              </label>
+            </div>
+            {loadReport && (
+              <div className="load-report">
+                <span className="metric ok">{loadReport.counted_ok} OK</span>
+                <span className="metric bad">{loadReport.counted_failed} failed</span>
+                <span className="metric">{loadReport.rps.toFixed(1)} req/s</span>
+                <span className="metric">min {loadReport.min_ms} ms</span>
+                <span className="metric">avg {loadReport.avg_ms} ms</span>
+                <span className="metric">p95 {loadReport.p95_ms} ms</span>
+                <span className="metric">p99 {loadReport.p99_ms} ms</span>
+                {loadReport.statuses.map(([code, count]) => (
+                  <span key={code} className={code >= 200 && code < 300 ? "metric ok" : "metric bad"}>
+                    {code} × {count}
+                  </span>
+                ))}
+                {loadReport.errors.length > 0 && (
+                  <span className="load-errors">{loadReport.errors.join(" · ")}</span>
+                )}
+              </div>
+            )}
+            {status && <div className="status-note">{status}</div>}
+          </div>
 
           <div className="work-split">
             <div className="request-pane">
