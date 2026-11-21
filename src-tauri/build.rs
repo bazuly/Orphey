@@ -9,6 +9,7 @@ fn main() {
                 "set_room_base_url",
                 "delete_request",
                 "send_request",
+                "run_load",
             ]),
         ),
     )

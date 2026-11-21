@@ -2,6 +2,8 @@ use tokio::runtime::Runtime;
 use uuid::Uuid;
 
 use crate::error::Error;
+use crate::load;
+use crate::models::load::{LoadReport, LoadSpec};
 use crate::models::request::{RequestDraft, ResponseSnapshot, SavedRequest};
 use crate::models::room::Room;
 use crate::repository::db;
@@ -61,8 +63,7 @@ impl Backend {
         draft: RequestDraft,
         base_url: &str,
     ) -> Result<ResponseSnapshot, Error> {
-        self.rt
-            .block_on(http::send(draft, base_url))
+        self.rt.block_on(http::send(draft, base_url))
     }
 
     pub fn save_exchange(
@@ -76,5 +77,20 @@ impl Backend {
         let current = self.requests_svc.list(room_id)?;
         self.requests_svc
             .create(room_id, selected_id, name, draft, snapshot, &current)
+    }
+
+    pub fn run_load(
+        &self,
+        draft: RequestDraft,
+        base_url: &str,
+        concurrency: usize,
+        total_vu: usize,
+    ) -> Result<LoadReport, Error> {
+        self.rt.block_on(load::service::run(LoadSpec {
+            draft,
+            base_url: base_url.to_string(),
+            concurrency,
+            total_vu,
+        }))
     }
 }

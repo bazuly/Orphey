@@ -282,6 +282,48 @@ input, textarea, select {
 .send:hover { background: var(--gold-deep); }
 .send:disabled { opacity: 0.45; cursor: default; }
 
+.loadbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.loadbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loadbar input {
+  width: 72px;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  padding: 2px 0;
+}
+
+.load-run {
+  margin-left: auto;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.load-run:disabled { color: var(--faint); cursor: default; }
+
+.load-report {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.load-error { color: var(--danger); }
+
 .status-note {
   padding: 4px 12px 0;
   color: var(--danger);

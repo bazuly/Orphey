@@ -124,6 +124,10 @@ export default function App() {
 
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [concurrency, setConcurrency] = useState(10);
+  const [loadTotal, setLoadTotal] = useState(100);
+  const [loadReport, setLoadReport] = useState<api.LoadReport | null>(null);
   const [booting, setBooting] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
   const [editorTab, setEditorTab] = useState<"params" | "body" | "headers">("params");
@@ -389,8 +393,39 @@ export default function App() {
     });
   };
 
+  const runLoad = async () => {
+    if (!currentRoomId || !active || sending || loading) return;
+    const parallel = Math.min(50, Math.max(1, concurrency));
+    const total = Math.min(2000, Math.max(1, loadTotal));
+    setConcurrency(parallel);
+    setLoadTotal(total);
+    setLoading(true);
+    setStatus("");
+    setLoadReport(null);
+    const base = roomBaseUrl.trim();
+    try {
+      if (!currentRoom || currentRoom.base_url !== base) {
+        await api.setRoomBaseUrl(currentRoomId, base);
+        setRooms((prev) =>
+          prev.map((room) => (room.id === currentRoomId ? { ...room, base_url: base } : room)),
+        );
+      }
+      const report = await api.runLoad({
+        baseUrl: base,
+        concurrency: parallel,
+        total,
+        draft: active.draft,
+      });
+      setLoadReport(report);
+    } catch (err) {
+      setStatus(String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const send = async () => {
-    if (!currentRoomId || !active || sending) return;
+    if (!currentRoomId || !active || sending || loading) return;
     setSending(true);
     setStatus("");
     const base = roomBaseUrl.trim();
@@ -637,10 +672,63 @@ export default function App() {
                 if (e.key === "Enter") void send();
               }}
             />
-            <button type="button" className="send" disabled={!active || sending} onClick={() => void send()}>
+            <button type="button" className="send" disabled={!active || sending || loading} onClick={() => void send()}>
               {sending ? "Sending" : "Send"}
             </button>
           </div>
+          <div className="loadbar">
+            <label>
+              <span>одновременно</span>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={concurrency}
+                disabled={!active || loading}
+                onChange={(e) => setConcurrency(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              <span>запросов</span>
+              <input
+                type="number"
+                min={1}
+                max={2000}
+                value={loadTotal}
+                disabled={!active || loading}
+                onChange={(e) => setLoadTotal(Number(e.target.value))}
+              />
+            </label>
+            <button
+              type="button"
+              className="load-run"
+              disabled={!active || sending || loading}
+              onClick={() => void runLoad()}
+            >
+              {loading ? "Идёт прогон" : "Нагрузка"}
+            </button>
+          </div>
+          {loadReport && (
+            <div className="load-report">
+              <span>{loadReport.counted_ok} ok</span>
+              <span>{loadReport.counted_failed} ошибок</span>
+              <span>{loadReport.rps.toFixed(1)} rps</span>
+              <span>min {loadReport.min_ms} ms</span>
+              <span>avg {loadReport.avg_ms} ms</span>
+              <span>p95 {loadReport.p95_ms} ms</span>
+              <span>p99 {loadReport.p99_ms} ms</span>
+              {loadReport.statuses.map(([code, count]) => (
+                <span key={code}>
+                  {code} × {count}
+                </span>
+              ))}
+              {loadReport.errors.map((err) => (
+                <span key={err} className="load-error">
+                  {err}
+                </span>
+              ))}
+            </div>
+          )}
           {status && <div className="status-note">{status}</div>}
 
           <div className="work-split">

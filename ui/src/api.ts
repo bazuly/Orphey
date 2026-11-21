@@ -27,6 +27,36 @@ export async function deleteRequest(requestId: string): Promise<void> {
 
 export type SendResult = { saved: SavedRequest; snapshot: ResponseSnapshot };
 
+export type LoadReport = {
+  total_vu: number;
+  counted_ok: number;
+  counted_failed: number;
+  elapsed_ms: number;
+  rps: number;
+  min_ms: number;
+  avg_ms: number;
+  p95_ms: number;
+  p99_ms: number;
+  statuses: [number, number][];
+  errors: string[];
+};
+
+export async function runLoad(payload: {
+  baseUrl: string;
+  concurrency: number;
+  total: number;
+  draft: RequestDraft;
+}): Promise<LoadReport> {
+  return invoke("run_load", {
+    args: {
+      base_url: payload.baseUrl,
+      concurrency: payload.concurrency,
+      total_vu: payload.total,
+      draft: payload.draft,
+    },
+  });
+}
+
 export async function sendRequest(payload: {
   roomId: string;
   selectedId: string | null;

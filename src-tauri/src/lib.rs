@@ -17,6 +17,7 @@ pub fn run() {
             commands::set_room_base_url,
             commands::delete_request,
             commands::send_request,
+            commands::run_load,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

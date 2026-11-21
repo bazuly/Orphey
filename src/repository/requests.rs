@@ -1,4 +1,4 @@
-use std::sync::{MutexGuard};
+use std::sync::MutexGuard;
 
 use uuid::Uuid;
 
