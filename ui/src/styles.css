@@ -172,9 +172,6 @@ input, textarea, select {
 .icon-btn:hover, .tab-close:hover, .tab-add:hover, .row-x:hover { color: var(--text); background: #333; }
 .icon-btn.danger:hover, .row-x:hover { color: var(--danger); }
 
-.text-btn { color: var(--muted); padding: 8px 0; font-size: 12px; }
-.text-btn:hover { color: var(--text); }
-
 .workspace {
   flex: 1;
   display: flex;
@@ -454,31 +451,62 @@ input, textarea, select {
   line-height: 1.55;
 }
 
-.kv {
+.pane-hint {
+  margin: 4px 0 10px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.kv-table {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.kv-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 20px;
-  gap: 12px;
-  align-items: center;
-  border-bottom: 1px solid var(--line);
+  grid-template-columns: 2fr 3fr 32px;
+  align-items: stretch;
+  border-top: 1px solid var(--line);
 }
 
-.kv.params { grid-template-columns: 18px 1fr 1fr 20px; }
-.kv input { padding: 8px 0; }
-.kv input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--gold); }
-.kv-head { color: var(--muted); font-size: 12px; border-bottom-color: transparent; }
+.kv-row:first-child { border-top: none; }
 
-.header-tools { display: flex; align-items: center; gap: 16px; }
-.flat-select { color: var(--muted); cursor: pointer; }
+.kv-row > input, .kv-row > span {
+  min-width: 0;
+  padding: 7px 10px;
+  border-right: 1px solid var(--line);
+}
 
-.path-line {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 14px;
+.kv-row > span:last-child { border-right: none; padding: 0; }
+
+.kv-row > input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+}
+
+.kv-row > input:focus { background: #232323; }
+.kv-row > input::placeholder { color: var(--faint); }
+.kv-row:hover > input:not(:focus) { background: #212121; }
+
+.kv-head {
+  background: #202020;
   color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.path-line input { flex: 1; color: var(--text); }
+.kv-head > span { padding: 6px 10px; }
+
+.kv-row .row-x {
+  align-self: center;
+  justify-self: center;
+  opacity: 0;
+}
+
+.kv-row:hover .row-x { opacity: 1; }
 
 .response-head {
   display: flex;

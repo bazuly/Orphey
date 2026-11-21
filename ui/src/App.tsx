@@ -4,14 +4,34 @@ import type { HttpMethod, RequestDraft, ResponseSnapshot, Room, SavedRequest } f
 
 const METHODS: HttpMethod[] = ["get", "post", "put", "patch", "delete"];
 
-const HEADER_TEMPLATES: [string, string][] = [
-  ["Content-Type", "application/json"],
-  ["Accept", "application/json"],
-  ["Authorization", "Bearer "],
-  ["User-Agent", "Orphey"],
+const COMMON_HEADERS = [
+  "Accept",
+  "Accept-Encoding",
+  "Accept-Language",
+  "Authorization",
+  "Cache-Control",
+  "Content-Type",
+  "Cookie",
+  "Origin",
+  "User-Agent",
+  "X-API-Key",
+  "X-Request-ID",
+];
+
+const COMMON_VALUES = [
+  "application/json",
+  "application/x-www-form-urlencoded",
+  "multipart/form-data",
+  "text/plain",
+  "Bearer ",
+  "Basic ",
+  "no-cache",
+  "gzip, deflate, br",
 ];
 
 type QueryParam = { name: string; value: string };
+
+type Pair = [string, string];
 
 type EditorTab = {
   key: string;
@@ -390,19 +410,6 @@ export default function App() {
     });
   };
 
-  const addHeader = () => {
-    setDraft((prev) => ({ ...prev, headers: [...prev.headers, ["", ""]] }));
-  };
-
-  const addHeaderTemplate = (name: string, value: string) => {
-    setDraft((prev) => {
-      if (prev.headers.some(([existing]) => existing.toLowerCase() === name.toLowerCase())) {
-        return prev;
-      }
-      return { ...prev, headers: [...prev.headers, [name, value]] };
-    });
-  };
-
   const runLoad = async () => {
     if (!currentRoomId || !active || sending || loading) return;
     const parallel = Math.min(50, Math.max(1, concurrency));
@@ -483,7 +490,6 @@ export default function App() {
   const draft = active?.draft ?? defaultDraft();
   const response = active?.response ?? null;
   const { path, params } = splitUrl(draft.url);
-  const paramRows = [...params, { name: "", value: "" }];
   const showBase = Boolean(roomBaseUrl.trim()) && !draft.url.includes("://");
   const statusClass =
     response && response.status >= 200 && response.status < 300 ? "status-ok" : "status-err";
@@ -610,7 +616,7 @@ export default function App() {
             <label className="base-line">
               <span>baseUrl</span>
               <input
-                placeholder="https://api.example.com"
+                placeholder="optional, e.g. https://api.example.com"
                 value={roomBaseUrl}
                 disabled={!currentRoomId}
                 onChange={(e) => setRoomBaseUrl(e.target.value)}
@@ -772,58 +778,16 @@ export default function App() {
                 {!active && <p className="empty">Open a request or press +</p>}
                 {active && editorTab === "params" && (
                   <>
-                    <div className="kv kv-head params">
-                      <span />
-                      <span>Name</span>
-                      <span>Value</span>
-                      <span />
-                    </div>
-                    {paramRows.map((param, index) => (
-                      <div className="kv params" key={index}>
-                        <input
-                          type="checkbox"
-                          checked={index < params.length}
-                          onChange={(e) => {
-                            if (!e.target.checked) writeParams(path, params.filter((_, i) => i !== index));
-                          }}
-                        />
-                        <input
-                          placeholder="Name"
-                          value={param.name}
-                          onChange={(e) => {
-                            const next = params.map((item) => ({ ...item }));
-                            if (index === params.length) next.push({ name: e.target.value, value: "" });
-                            else next[index] = { ...next[index], name: e.target.value };
-                            writeParams(path, next);
-                          }}
-                        />
-                        <input
-                          placeholder="Value"
-                          value={param.value}
-                          onChange={(e) => {
-                            const next = params.map((item) => ({ ...item }));
-                            if (index === params.length) next.push({ name: "", value: e.target.value });
-                            else next[index] = { ...next[index], value: e.target.value };
-                            writeParams(path, next);
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="row-x"
-                          onClick={() => writeParams(path, params.filter((_, i) => i !== index))}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    <label className="path-line">
-                      <span>Path</span>
-                      <input
-                        value={path}
-                        placeholder="/"
-                        onChange={(e) => writeParams(e.target.value, params)}
-                      />
-                    </label>
+                    <p className="pane-hint">Query parameters stay in sync with the URL.</p>
+                    <KvTable
+                      rows={params.map((param): Pair => [param.name, param.value])}
+                      onChange={(rows) =>
+                        writeParams(
+                          path,
+                          rows.map(([name, value]) => ({ name, value })),
+                        )
+                      }
+                    />
                   </>
                 )}
                 {active && editorTab === "body" && (
@@ -835,69 +799,23 @@ export default function App() {
                 )}
                 {active && editorTab === "headers" && (
                   <>
-                    <div className="kv kv-head">
-                      <span>Name</span>
-                      <span>Value</span>
-                      <span />
-                    </div>
-                    {draft.headers.map(([name, value], index) => (
-                      <div className="kv" key={index}>
-                        <input
-                          placeholder="Name"
-                          value={name}
-                          onChange={(e) => {
-                            const headers = [...draft.headers];
-                            headers[index] = [e.target.value, value];
-                            setDraft({ ...draft, headers });
-                          }}
-                        />
-                        <input
-                          placeholder="Value"
-                          value={value}
-                          onChange={(e) => {
-                            const headers = [...draft.headers];
-                            headers[index] = [name, e.target.value];
-                            setDraft({ ...draft, headers });
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="row-x"
-                          onClick={() =>
-                            setDraft({
-                              ...draft,
-                              headers: draft.headers.filter((_, i) => i !== index),
-                            })
-                          }
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                    <div className="header-tools">
-                      <button type="button" className="text-btn" onClick={addHeader}>
-                        + Add header
-                      </button>
-                      <select
-                        className="flat-select"
-                        defaultValue=""
-                        onChange={(e) => {
-                          const idx = Number(e.target.value);
-                          if (idx >= 0) {
-                            const [n, v] = HEADER_TEMPLATES[idx];
-                            addHeaderTemplate(n, v);
-                          }
-                          e.target.value = "";
-                        }}
-                      >
-                        <option value="">Template…</option>
-                        {HEADER_TEMPLATES.map(([n], i) => (
-                          <option key={n} value={i}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <p className="pane-hint">Start typing a key to see common headers.</p>
+                    <KvTable
+                      rows={draft.headers}
+                      keyList="common-headers"
+                      valueList="common-values"
+                      onChange={(headers) => setDraft({ ...draft, headers })}
+                    />
+                    <datalist id="common-headers">
+                      {COMMON_HEADERS.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
+                    <datalist id="common-values">
+                      {COMMON_VALUES.map((value) => (
+                        <option key={value} value={value} />
+                      ))}
+                    </datalist>
                   </>
                 )}
               </div>
@@ -946,6 +864,68 @@ export default function App() {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function KvTable({
+  rows,
+  onChange,
+  keyList,
+  valueList,
+}: {
+  rows: Pair[];
+  onChange: (rows: Pair[]) => void;
+  keyList?: string;
+  valueList?: string;
+}) {
+  const edit = (index: number, column: 0 | 1, text: string) => {
+    const next = rows.map((row): Pair => [row[0], row[1]]);
+    if (index === rows.length) next.push(["", ""]);
+    next[index][column] = text;
+    onChange(next);
+  };
+
+  return (
+    <div className="kv-table">
+      <div className="kv-row kv-head">
+        <span>Key</span>
+        <span>Value</span>
+        <span />
+      </div>
+      {[...rows, ["", ""] as Pair].map(([key, value], index) => {
+        const isNew = index === rows.length;
+        return (
+          <div className={`kv-row ${isNew ? "kv-new" : ""}`} key={index}>
+            <input
+              placeholder={isNew ? "Add key" : "Key"}
+              value={key}
+              list={keyList}
+              spellCheck={false}
+              onChange={(e) => edit(index, 0, e.target.value)}
+            />
+            <input
+              placeholder={isNew ? "Value" : ""}
+              value={value}
+              list={valueList}
+              spellCheck={false}
+              onChange={(e) => edit(index, 1, e.target.value)}
+            />
+            {isNew ? (
+              <span />
+            ) : (
+              <button
+                type="button"
+                className="row-x"
+                title="Remove"
+                onClick={() => onChange(rows.filter((_, i) => i !== index))}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
