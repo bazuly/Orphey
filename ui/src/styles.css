@@ -371,31 +371,6 @@ input, textarea, select {
 .loadbar input:focus { border-color: #5a5a5a; }
 .loadbar input:disabled { opacity: 0.45; }
 
-.load-report {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-variant-numeric: tabular-nums;
-}
-
-.metric {
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #252525;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.metric.ok { color: var(--ok); background: #1c2b20; }
-.metric.bad { color: var(--danger); background: #321c1e; }
-
-.load-errors {
-  flex: 1 0 100%;
-  color: var(--danger);
-  font-size: 12px;
-}
-
 .status-note {
   color: var(--danger);
   font-size: 12px;

@@ -40,6 +40,7 @@ type EditorTab = {
   name: string;
   draft: RequestDraft;
   response: ResponseSnapshot | null;
+  loadReport: api.LoadReport | null;
 };
 
 const defaultDraft = (): RequestDraft => ({
@@ -132,6 +133,10 @@ function formatElapsed(ms: number): string {
   return `${ms} ms`;
 }
 
+function reportJson(report: api.LoadReport): string {
+  return JSON.stringify(report, null, 2);
+}
+
 function formatSize(text: string): string {
   const bytes = new TextEncoder().encode(text).length;
   if (bytes < 1024) return `${bytes} B`;
@@ -157,11 +162,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [concurrency, setConcurrency] = useState(10);
   const [loadTotal, setLoadTotal] = useState(100);
-  const [loadReport, setLoadReport] = useState<api.LoadReport | null>(null);
   const [booting, setBooting] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
   const [editorTab, setEditorTab] = useState<"params" | "body" | "headers">("params");
-  const [responseTab, setResponseTab] = useState<"body" | "headers">("body");
+  const [responseTab, setResponseTab] = useState<"body" | "headers" | "load">("body");
 
   const currentRoom = useMemo(
     () => rooms.find((room) => room.id === currentRoomId),
@@ -345,6 +349,7 @@ export default function App() {
         name: displayName(saved.name, saved.draft),
         draft: saved.draft,
         response: saved.response,
+        loadReport: null,
       },
     ]);
     setActiveKey(key);
@@ -362,6 +367,7 @@ export default function App() {
         name: "",
         draft: defaultDraft(),
         response: null,
+        loadReport: null,
       },
     ]);
     setActiveKey(key);
@@ -418,7 +424,7 @@ export default function App() {
     setLoadTotal(total);
     setLoading(true);
     setStatus("");
-    setLoadReport(null);
+    const tabKey = active.key;
     const base = roomBaseUrl.trim();
     try {
       if (!currentRoom || currentRoom.base_url !== base) {
@@ -433,7 +439,10 @@ export default function App() {
         total,
         draft: active.draft,
       });
-      setLoadReport(report);
+      setTabs((prev) =>
+        prev.map((tab) => (tab.key === tabKey ? { ...tab, loadReport: report } : tab)),
+      );
+      setResponseTab("load");
     } catch (err) {
       setStatus(String(err));
     } finally {
@@ -489,6 +498,7 @@ export default function App() {
 
   const draft = active?.draft ?? defaultDraft();
   const response = active?.response ?? null;
+  const loadReport = active?.loadReport ?? null;
   const { path, params } = splitUrl(draft.url);
   const showBase = Boolean(roomBaseUrl.trim()) && !draft.url.includes("://");
   const statusClass =
@@ -726,25 +736,6 @@ export default function App() {
                 />
               </label>
             </div>
-            {loadReport && (
-              <div className="load-report">
-                <span className="metric ok">{loadReport.counted_ok} OK</span>
-                <span className="metric bad">{loadReport.counted_failed} failed</span>
-                <span className="metric">{loadReport.rps.toFixed(1)} req/s</span>
-                <span className="metric">min {loadReport.min_ms} ms</span>
-                <span className="metric">avg {loadReport.avg_ms} ms</span>
-                <span className="metric">p95 {loadReport.p95_ms} ms</span>
-                <span className="metric">p99 {loadReport.p99_ms} ms</span>
-                {loadReport.statuses.map(([code, count]) => (
-                  <span key={code} className={code >= 200 && code < 300 ? "metric ok" : "metric bad"}>
-                    {code} × {count}
-                  </span>
-                ))}
-                {loadReport.errors.length > 0 && (
-                  <span className="load-errors">{loadReport.errors.join(" · ")}</span>
-                )}
-              </div>
-            )}
             {status && <div className="status-note">{status}</div>}
           </div>
 
@@ -838,18 +829,40 @@ export default function App() {
                   >
                     Headers{response ? ` ${response.headers.length}` : ""}
                   </button>
+                  <button
+                    type="button"
+                    className={responseTab === "load" ? "active" : ""}
+                    onClick={() => setResponseTab("load")}
+                  >
+                    Load
+                  </button>
                 </div>
-                {response && (
+                {responseTab !== "load" && response && (
                   <div className="spacer">
                     <span className={statusClass}>{statusText(response.status)}</span>
                     <span>{formatElapsed(response.elapsed_ms)}</span>
                     <span>{formatSize(response.body)}</span>
                   </div>
                 )}
+                {responseTab === "load" && loadReport && (
+                  <div className="spacer">
+                    <span className="status-ok">{loadReport.counted_ok} OK</span>
+                    <span className={loadReport.counted_failed > 0 ? "status-err" : "status-ok"}>
+                      {loadReport.counted_failed} failed
+                    </span>
+                    <span>{loadReport.rps.toFixed(1)} req/s</span>
+                    <span>{formatElapsed(loadReport.elapsed_ms)}</span>
+                  </div>
+                )}
               </div>
-              {!response && <p className="empty">Send a request to see the response</p>}
-              {response && responseTab === "body" && <CodeView text={response.body} />}
-              {response && responseTab === "headers" && (
+              {responseTab === "body" && !response && (
+                <p className="empty">Send a request to see the response</p>
+              )}
+              {responseTab === "body" && response && <CodeView text={response.body} />}
+              {responseTab === "headers" && !response && (
+                <p className="empty">Send a request to see the response</p>
+              )}
+              {responseTab === "headers" && response && (
                 <div className="header-list">
                   {response.headers.length === 0 && <p className="empty">No headers</p>}
                   {response.headers.map(([name, value], index) => (
@@ -860,6 +873,10 @@ export default function App() {
                   ))}
                 </div>
               )}
+              {responseTab === "load" && !loadReport && (
+                <p className="empty">Run a load test to see the report</p>
+              )}
+              {responseTab === "load" && loadReport && <CodeView text={reportJson(loadReport)} />}
             </aside>
           </div>
         </section>
