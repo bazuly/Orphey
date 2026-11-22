@@ -2,7 +2,7 @@ use tokio::runtime::Runtime;
 use uuid::Uuid;
 
 use crate::error::Error;
-use crate::load;
+use crate::load::service::run;
 use crate::models::load::{LoadReport, LoadSpec};
 use crate::models::request::{RequestDraft, ResponseSnapshot, SavedRequest};
 use crate::models::room::Room;
@@ -86,7 +86,7 @@ impl Backend {
         concurrency: usize,
         total_vu: usize,
     ) -> Result<LoadReport, Error> {
-        self.rt.block_on(load::service::run(LoadSpec {
+        self.rt.block_on(run(LoadSpec {
             draft,
             base_url: base_url.to_string(),
             concurrency,

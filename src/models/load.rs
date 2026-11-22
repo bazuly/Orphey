@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::models::request::RequestDraft;
 
@@ -6,12 +6,26 @@ use crate::models::request::RequestDraft;
 pub struct LoadSpec {
     pub draft: RequestDraft,
     pub base_url: String,
-    pub concurrency: usize, // кол-во потоков
-    pub total_vu: usize,    // кол-во в. пользователей
+    pub total_vu: usize,
+    pub profile: LoadProfile,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum LoadProfile {
+    Fixed {
+        concurrency: usize,
+    },
+    RampUp {
+        start: usize,
+        max: usize,
+        ramp_ms: u64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LoadReport {
+    pub profile: LoadProfile,
     pub total_vu: u64,
     pub counted_ok: u64,
     pub counted_failed: u64,
