@@ -48,7 +48,7 @@ fn summarize(samples: Vec<Sample>, elapsed_ms: u64) -> LoadReport {
     let seconds = (elapsed_ms as f64 / 1000.0).max(0.001);
 
     LoadReport {
-        profile: LoadProfile::Fixed { concurrency: 1 },
+        // profile: LoadProfile::Fixed { concurrency: 1 },
         total_vu,
         counted_ok,
         counted_failed,

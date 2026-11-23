@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::error::Error;
 use crate::load::service::run;
-use crate::models::load::{LoadReport, LoadSpec};
+use crate::models::load::{LoadProfile, LoadReport, LoadSpec};
 use crate::models::request::{RequestDraft, ResponseSnapshot, SavedRequest};
 use crate::models::room::Room;
 use crate::repository::db;
@@ -89,8 +89,8 @@ impl Backend {
         self.rt.block_on(run(LoadSpec {
             draft,
             base_url: base_url.to_string(),
-            concurrency,
             total_vu,
+            profile: LoadProfile::Fixed { concurrency },
         }))
     }
 }
