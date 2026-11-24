@@ -358,8 +358,7 @@ input, textarea, select {
   font-size: 12px;
 }
 
-.loadbar input {
-  width: 68px;
+.loadbar input, .loadbar select {
   height: 26px;
   padding: 0 8px;
   color: var(--text);
@@ -368,8 +367,10 @@ input, textarea, select {
   border-radius: 6px;
 }
 
-.loadbar input:focus { border-color: #5a5a5a; }
-.loadbar input:disabled { opacity: 0.45; }
+.loadbar input { width: 68px; }
+.loadbar select { cursor: pointer; }
+.loadbar input:focus, .loadbar select:focus { border-color: #5a5a5a; }
+.loadbar input:disabled, .loadbar select:disabled { opacity: 0.45; }
 
 .status-note {
   color: var(--danger);

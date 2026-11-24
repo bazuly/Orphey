@@ -83,14 +83,14 @@ impl Backend {
         &self,
         draft: RequestDraft,
         base_url: &str,
-        concurrency: usize,
         total_vu: usize,
+        profile: LoadProfile,
     ) -> Result<LoadReport, Error> {
         self.rt.block_on(run(LoadSpec {
             draft,
             base_url: base_url.to_string(),
             total_vu,
-            profile: LoadProfile::Fixed { concurrency },
+            profile,
         }))
     }
 }

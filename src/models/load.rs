@@ -25,7 +25,7 @@ pub enum LoadProfile {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LoadReport {
-    // pub profile: LoadProfile,
+    pub profile: LoadProfile,
     pub total_vu: u64,
     pub counted_ok: u64,
     pub counted_failed: u64,

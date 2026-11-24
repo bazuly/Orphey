@@ -3,15 +3,15 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use tokio::{task::JoinSet, time::Instant};
+use tokio::task::JoinSet;
 
 use crate::{
     error::Error,
+    load::service::execute_single_request,
     models::{
         load::{LoadProfile, LoadSpec, Sample},
         request::RequestDraft,
     },
-    repository::http::build_request,
 };
 
 pub(super) async fn run(
@@ -75,40 +75,5 @@ async fn worker_loop(
         }
         let sample = execute_single_request(&draft, &base_url, &client).await;
         samples.lock().expect("lock error").push(sample);
-    }
-}
-
-async fn execute_single_request(
-    draft: &RequestDraft,
-    base_url: &str,
-    client: &reqwest::Client,
-) -> Sample {
-    let began = Instant::now();
-    let request = match build_request(draft.clone(), &base_url, &client) {
-        Ok(req) => req,
-        Err(err) => {
-            return Sample {
-                status: None,
-                elapsed_ms: began.elapsed().as_millis() as u64,
-                error: Some(err.to_string()),
-            };
-        }
-    };
-
-    match client.execute(request).await {
-        Ok(response) => {
-            let status = response.status().as_u16();
-            let _ = response.bytes().await;
-            Sample {
-                status: Some(status),
-                elapsed_ms: began.elapsed().as_millis() as u64,
-                error: None,
-            }
-        }
-        Err(err) => Sample {
-            status: None,
-            elapsed_ms: began.elapsed().as_millis() as u64,
-            error: Some(err.to_string()),
-        },
     }
 }

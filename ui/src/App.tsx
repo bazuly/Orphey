@@ -160,7 +160,10 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [profileKind, setProfileKind] = useState<"fixed" | "ramp_up">("fixed");
   const [concurrency, setConcurrency] = useState(10);
+  const [rampStart, setRampStart] = useState(1);
+  const [rampSeconds, setRampSeconds] = useState(10);
   const [loadTotal, setLoadTotal] = useState(100);
   const [booting, setBooting] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -418,9 +421,17 @@ export default function App() {
 
   const runLoad = async () => {
     if (!currentRoomId || !active || sending || loading) return;
-    const parallel = Math.min(50, Math.max(1, concurrency));
+    const max = Math.min(50, Math.max(1, concurrency));
+    const start = Math.min(max, Math.max(1, rampStart));
+    const seconds = Math.min(60, Math.max(1, rampSeconds));
     const total = Math.min(2000, Math.max(1, loadTotal));
-    setConcurrency(parallel);
+    const profile: api.LoadProfile =
+      profileKind === "fixed"
+        ? { kind: "fixed", concurrency: max }
+        : { kind: "ramp_up", start, max, ramp_ms: seconds * 1000 };
+    setConcurrency(max);
+    setRampStart(start);
+    setRampSeconds(seconds);
     setLoadTotal(total);
     setLoading(true);
     setStatus("");
@@ -435,8 +446,8 @@ export default function App() {
       }
       const report = await api.runLoad({
         baseUrl: base,
-        concurrency: parallel,
         total,
+        profile,
         draft: active.draft,
       });
       setTabs((prev) =>
@@ -713,8 +724,29 @@ export default function App() {
             </div>
             <div className="loadbar">
               <span className="load-kicker">Load test</span>
+              <select
+                value={profileKind}
+                disabled={!active || loading}
+                onChange={(e) => setProfileKind(e.target.value as "fixed" | "ramp_up")}
+              >
+                <option value="fixed">Fixed</option>
+                <option value="ramp_up">Ramp up</option>
+              </select>
+              {profileKind === "ramp_up" && (
+                <label>
+                  <span>Start</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={rampStart}
+                    disabled={!active || loading}
+                    onChange={(e) => setRampStart(Number(e.target.value))}
+                  />
+                </label>
+              )}
               <label>
-                <span>Concurrent</span>
+                <span>{profileKind === "fixed" ? "Concurrent" : "Max"}</span>
                 <input
                   type="number"
                   min={1}
@@ -724,6 +756,19 @@ export default function App() {
                   onChange={(e) => setConcurrency(Number(e.target.value))}
                 />
               </label>
+              {profileKind === "ramp_up" && (
+                <label>
+                  <span>Ramp, s</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={rampSeconds}
+                    disabled={!active || loading}
+                    onChange={(e) => setRampSeconds(Number(e.target.value))}
+                  />
+                </label>
+              )}
               <label>
                 <span>Requests</span>
                 <input

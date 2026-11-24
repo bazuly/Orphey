@@ -27,7 +27,12 @@ export async function deleteRequest(requestId: string): Promise<void> {
 
 export type SendResult = { saved: SavedRequest; snapshot: ResponseSnapshot };
 
+export type LoadProfile =
+  | { kind: "fixed"; concurrency: number }
+  | { kind: "ramp_up"; start: number; max: number; ramp_ms: number };
+
 export type LoadReport = {
+  profile: LoadProfile;
   total_vu: number;
   counted_ok: number;
   counted_failed: number;
@@ -43,15 +48,15 @@ export type LoadReport = {
 
 export async function runLoad(payload: {
   baseUrl: string;
-  concurrency: number;
   total: number;
+  profile: LoadProfile;
   draft: RequestDraft;
 }): Promise<LoadReport> {
   return invoke("run_load", {
     args: {
       base_url: payload.baseUrl,
-      concurrency: payload.concurrency,
       total_vu: payload.total,
+      profile: payload.profile,
       draft: payload.draft,
     },
   });

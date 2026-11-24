@@ -1,22 +1,33 @@
 use std::collections::BTreeMap;
 
+use tokio::time::Instant;
+
 use crate::error::Error;
 
 use crate::load::fixed::{self};
+use crate::load::ramp_up::{self};
 use crate::models::load::{LoadProfile, LoadReport, LoadSpec, Sample};
-use crate::repository::http;
+use crate::models::request::RequestDraft;
+use crate::repository::http::{self, build_request};
 
 pub async fn run(spec: LoadSpec) -> Result<LoadReport, Error> {
     let total_vu = spec.total_vu.clamp(1, 2000);
     let started = tokio::time::Instant::now();
 
     let client = http::create_client()?;
-    let samples = fixed::run(&spec, &client, total_vu).await?;
+    let samples = match spec.profile.clone() {
+        LoadProfile::Fixed { .. } => fixed::run(&spec, &client, total_vu).await?,
+        LoadProfile::RampUp {
+            start,
+            max,
+            ramp_ms,
+        } => ramp_up::run(&spec, &client, total_vu, start, max, ramp_ms).await?,
+    };
     let elapsed_ms = started.elapsed().as_millis() as u64;
-    Ok(summarize(samples, elapsed_ms))
+    Ok(summarize(samples, elapsed_ms, spec.profile))
 }
 
-fn summarize(samples: Vec<Sample>, elapsed_ms: u64) -> LoadReport {
+fn summarize(samples: Vec<Sample>, elapsed_ms: u64, profile: LoadProfile) -> LoadReport {
     let total_vu = samples.len() as u64;
     let mut latencies = Vec::new();
     let mut statuses: BTreeMap<u16, u64> = BTreeMap::new();
@@ -48,7 +59,7 @@ fn summarize(samples: Vec<Sample>, elapsed_ms: u64) -> LoadReport {
     let seconds = (elapsed_ms as f64 / 1000.0).max(0.001);
 
     LoadReport {
-        // profile: LoadProfile::Fixed { concurrency: 1 },
+        profile: profile,
         total_vu,
         counted_ok,
         counted_failed,
@@ -69,4 +80,39 @@ fn percentile(sorted: &[u64], percent: f64) -> u64 {
     }
     let idx = ((sorted.len() as f64 - 1.0) * percent).round() as usize;
     sorted[idx.min(sorted.len() - 1)]
+}
+
+pub async fn execute_single_request(
+    draft: &RequestDraft,
+    base_url: &str,
+    client: &reqwest::Client,
+) -> Sample {
+    let began = Instant::now();
+    let request = match build_request(draft.clone(), &base_url, &client) {
+        Ok(req) => req,
+        Err(err) => {
+            return Sample {
+                status: None,
+                elapsed_ms: began.elapsed().as_millis() as u64,
+                error: Some(err.to_string()),
+            };
+        }
+    };
+
+    match client.execute(request).await {
+        Ok(response) => {
+            let status = response.status().as_u16();
+            let _ = response.bytes().await;
+            Sample {
+                status: Some(status),
+                elapsed_ms: began.elapsed().as_millis() as u64,
+                error: None,
+            }
+        }
+        Err(err) => Sample {
+            status: None,
+            elapsed_ms: began.elapsed().as_millis() as u64,
+            error: Some(err.to_string()),
+        },
+    }
 }

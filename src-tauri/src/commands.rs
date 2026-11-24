@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use orphey::backend::Backend;
 use orphey::error::Error;
-use orphey::models::load::LoadReport;
+use orphey::models::load::{LoadProfile, LoadReport};
 use orphey::models::request::{RequestDraft, ResponseSnapshot, SavedRequest};
 use orphey::models::room::Room;
 use serde::{Deserialize, Serialize};
@@ -157,8 +157,8 @@ pub fn send_request(
 #[derive(Deserialize)]
 pub struct LoadArgs {
     pub base_url: String,
-    pub concurrency: usize,
     pub total_vu: usize,
+    pub profile: LoadProfile,
     pub draft: RequestDraft,
 }
 
@@ -166,6 +166,6 @@ pub struct LoadArgs {
 pub fn run_load(state: State<AppState>, args: LoadArgs) -> Result<LoadReport, String> {
     let backend = state.0.lock().expect("backend lock");
     backend
-        .run_load(args.draft, &args.base_url, args.concurrency, args.total_vu)
+        .run_load(args.draft, &args.base_url, args.total_vu, args.profile)
         .map_err(|err| err.to_string())
 }
