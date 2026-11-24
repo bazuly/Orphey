@@ -27,6 +27,13 @@ pub enum LoadProfile {
         at_ms: u64,
         for_ms: u64,
     },
+    Pike {
+        start: usize,
+        max: usize,
+        ramp_up_ms: u64,
+        hold_ms: u64,
+        ramp_down_ms: u64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]

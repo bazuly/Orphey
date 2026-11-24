@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use tokio::task::JoinSet;
 
-use crate::load::service::execute_single_request;
+use crate::load::utils::execute_single_request;
 use crate::models::load::{LoadSpec, Sample};
 
 use crate::error::Error;

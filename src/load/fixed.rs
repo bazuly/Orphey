@@ -7,7 +7,7 @@ use tokio::task::JoinSet;
 
 use crate::{
     error::Error,
-    load::service::execute_single_request,
+    load::utils::execute_single_request,
     models::{
         load::{LoadProfile, LoadSpec, Sample},
         request::RequestDraft,
@@ -48,7 +48,7 @@ fn spawn_workers(
     let mut tasks = JoinSet::new();
 
     for _ in 0..concurrency {
-        tasks.spawn(worker_loop(
+        tasks.spawn(fixed_worker_loop(
             total_vu,
             spec.draft.clone(),
             spec.base_url.clone(),
@@ -59,8 +59,7 @@ fn spawn_workers(
     }
     tasks
 }
-
-async fn worker_loop(
+pub async fn fixed_worker_loop(
     total_vu: usize,
     draft: RequestDraft,
     base_url: String,

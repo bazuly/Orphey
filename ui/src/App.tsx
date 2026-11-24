@@ -172,10 +172,13 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [profileKind, setProfileKind] = useState<"fixed" | "ramp_up" | "spike">("fixed");
+  const [profileKind, setProfileKind] = useState<"fixed" | "ramp_up" | "spike" | "pike">("fixed");
   const [concurrency, setConcurrency] = useState(10);
   const [rampStart, setRampStart] = useState(1);
   const [rampSeconds, setRampSeconds] = useState(10);
+  const [peakUp, setPeakUp] = useState(5);
+  const [peakHold, setPeakHold] = useState(10);
+  const [peakDown, setPeakDown] = useState(5);
   const [spikeBase, setSpikeBase] = useState(2);
   const [spikeAt, setSpikeAt] = useState(5);
   const [spikeFor, setSpikeFor] = useState(2);
@@ -439,6 +442,9 @@ export default function App() {
     const max = Math.min(50, Math.max(1, concurrency));
     const start = Math.min(max, Math.max(1, rampStart));
     const seconds = Math.min(60, Math.max(1, rampSeconds));
+    const upSeconds = Math.min(60, Math.max(1, peakUp));
+    const holdSeconds = Math.min(60, Math.max(0, peakHold));
+    const downSeconds = Math.min(60, Math.max(0, peakDown));
     const base = Math.min(max, Math.max(1, spikeBase));
     const atSeconds = Math.min(60, Math.max(0, spikeAt));
     const forSeconds = Math.min(60, Math.max(1, spikeFor));
@@ -448,10 +454,22 @@ export default function App() {
         ? { kind: "fixed", concurrency: max }
         : profileKind === "ramp_up"
           ? { kind: "ramp_up", start, max, ramp_ms: seconds * 1000 }
-          : { kind: "spike", base, spike: max, at_ms: atSeconds * 1000, for_ms: forSeconds * 1000 };
+          : profileKind === "spike"
+            ? { kind: "spike", base, spike: max, at_ms: atSeconds * 1000, for_ms: forSeconds * 1000 }
+            : {
+                kind: "pike",
+                start,
+                max,
+                ramp_up_ms: upSeconds * 1000,
+                hold_ms: holdSeconds * 1000,
+                ramp_down_ms: downSeconds * 1000,
+              };
     setConcurrency(max);
     setRampStart(start);
     setRampSeconds(seconds);
+    setPeakUp(upSeconds);
+    setPeakHold(holdSeconds);
+    setPeakDown(downSeconds);
     setSpikeBase(base);
     setSpikeAt(atSeconds);
     setSpikeFor(forSeconds);
@@ -752,13 +770,16 @@ export default function App() {
               <select
                 value={profileKind}
                 disabled={!active || loading}
-                onChange={(e) => setProfileKind(e.target.value as "fixed" | "ramp_up" | "spike")}
+                onChange={(e) =>
+                  setProfileKind(e.target.value as "fixed" | "ramp_up" | "spike" | "pike")
+                }
               >
                 <option value="fixed">Fixed</option>
                 <option value="ramp_up">Ramp up</option>
                 <option value="spike">Spike</option>
+                <option value="pike">Peak</option>
               </select>
-              {profileKind === "ramp_up" && (
+              {(profileKind === "ramp_up" || profileKind === "pike") && (
                 <label>
                   <span>Start</span>
                   <input
@@ -786,7 +807,7 @@ export default function App() {
               )}
               <label>
                 <span>
-                  {profileKind === "fixed" ? "Concurrent" : profileKind === "ramp_up" ? "Max" : "Spike"}
+                  {profileKind === "fixed" ? "Concurrent" : profileKind === "spike" ? "Spike" : "Max"}
                 </span>
                 <input
                   type="number"
@@ -809,6 +830,43 @@ export default function App() {
                     onChange={(e) => setRampSeconds(Number(e.target.value))}
                   />
                 </label>
+              )}
+              {profileKind === "pike" && (
+                <>
+                  <label>
+                    <span>Up, s</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={peakUp}
+                      disabled={!active || loading}
+                      onChange={(e) => setPeakUp(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>Hold, s</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={peakHold}
+                      disabled={!active || loading}
+                      onChange={(e) => setPeakHold(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>Down, s</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={peakDown}
+                      disabled={!active || loading}
+                      onChange={(e) => setPeakDown(Number(e.target.value))}
+                    />
+                  </label>
+                </>
               )}
               {profileKind === "spike" && (
                 <>

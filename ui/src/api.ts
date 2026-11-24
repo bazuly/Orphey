@@ -30,7 +30,8 @@ export type SendResult = { saved: SavedRequest; snapshot: ResponseSnapshot };
 export type LoadProfile =
   | { kind: "fixed"; concurrency: number }
   | { kind: "ramp_up"; start: number; max: number; ramp_ms: number }
-  | { kind: "spike"; base: number; spike: number; at_ms: number; for_ms: number };
+  | { kind: "spike"; base: number; spike: number; at_ms: number; for_ms: number }
+  | { kind: "pike"; start: number; max: number; ramp_up_ms: number; hold_ms: number; ramp_down_ms: number };
 
 export type LoadReport = {
   profile: LoadProfile;

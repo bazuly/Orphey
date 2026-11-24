@@ -6,7 +6,7 @@ use tokio::task::JoinSet;
 use tokio::time::Instant;
 
 use crate::error::Error;
-use crate::load::service::execute_single_request;
+use crate::load::utils::execute_single_request;
 use crate::models::load::{LoadSpec, Sample};
 use crate::models::request::RequestDraft;
 
@@ -36,7 +36,7 @@ pub(super) async fn run(
         } else {
             (at_ms, Some(until_ms))
         };
-        tasks.spawn(worker_loop(
+        tasks.spawn(spike_worker_loop(
             from_ms,
             until,
             total_vu,
@@ -55,7 +55,7 @@ pub(super) async fn run(
     Ok(ready)
 }
 
-async fn worker_loop(
+async fn spike_worker_loop(
     from_ms: u64,
     until_ms: Option<u64>,
     total_vu: usize,
