@@ -340,6 +340,7 @@ input, textarea, select {
 .loadbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   min-height: 28px;
   color: var(--muted);

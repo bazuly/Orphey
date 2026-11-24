@@ -160,10 +160,13 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [profileKind, setProfileKind] = useState<"fixed" | "ramp_up">("fixed");
+  const [profileKind, setProfileKind] = useState<"fixed" | "ramp_up" | "spike">("fixed");
   const [concurrency, setConcurrency] = useState(10);
   const [rampStart, setRampStart] = useState(1);
   const [rampSeconds, setRampSeconds] = useState(10);
+  const [spikeBase, setSpikeBase] = useState(2);
+  const [spikeAt, setSpikeAt] = useState(5);
+  const [spikeFor, setSpikeFor] = useState(2);
   const [loadTotal, setLoadTotal] = useState(100);
   const [booting, setBooting] = useState(true);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -424,28 +427,36 @@ export default function App() {
     const max = Math.min(50, Math.max(1, concurrency));
     const start = Math.min(max, Math.max(1, rampStart));
     const seconds = Math.min(60, Math.max(1, rampSeconds));
+    const base = Math.min(max, Math.max(1, spikeBase));
+    const atSeconds = Math.min(60, Math.max(0, spikeAt));
+    const forSeconds = Math.min(60, Math.max(1, spikeFor));
     const total = Math.min(2000, Math.max(1, loadTotal));
     const profile: api.LoadProfile =
       profileKind === "fixed"
         ? { kind: "fixed", concurrency: max }
-        : { kind: "ramp_up", start, max, ramp_ms: seconds * 1000 };
+        : profileKind === "ramp_up"
+          ? { kind: "ramp_up", start, max, ramp_ms: seconds * 1000 }
+          : { kind: "spike", base, spike: max, at_ms: atSeconds * 1000, for_ms: forSeconds * 1000 };
     setConcurrency(max);
     setRampStart(start);
     setRampSeconds(seconds);
+    setSpikeBase(base);
+    setSpikeAt(atSeconds);
+    setSpikeFor(forSeconds);
     setLoadTotal(total);
     setLoading(true);
     setStatus("");
     const tabKey = active.key;
-    const base = roomBaseUrl.trim();
+    const roomBase = roomBaseUrl.trim();
     try {
-      if (!currentRoom || currentRoom.base_url !== base) {
-        await api.setRoomBaseUrl(currentRoomId, base);
+      if (!currentRoom || currentRoom.base_url !== roomBase) {
+        await api.setRoomBaseUrl(currentRoomId, roomBase);
         setRooms((prev) =>
-          prev.map((room) => (room.id === currentRoomId ? { ...room, base_url: base } : room)),
+          prev.map((room) => (room.id === currentRoomId ? { ...room, base_url: roomBase } : room)),
         );
       }
       const report = await api.runLoad({
-        baseUrl: base,
+        baseUrl: roomBase,
         total,
         profile,
         draft: active.draft,
@@ -727,10 +738,11 @@ export default function App() {
               <select
                 value={profileKind}
                 disabled={!active || loading}
-                onChange={(e) => setProfileKind(e.target.value as "fixed" | "ramp_up")}
+                onChange={(e) => setProfileKind(e.target.value as "fixed" | "ramp_up" | "spike")}
               >
                 <option value="fixed">Fixed</option>
                 <option value="ramp_up">Ramp up</option>
+                <option value="spike">Spike</option>
               </select>
               {profileKind === "ramp_up" && (
                 <label>
@@ -745,8 +757,23 @@ export default function App() {
                   />
                 </label>
               )}
+              {profileKind === "spike" && (
+                <label>
+                  <span>Base</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={spikeBase}
+                    disabled={!active || loading}
+                    onChange={(e) => setSpikeBase(Number(e.target.value))}
+                  />
+                </label>
+              )}
               <label>
-                <span>{profileKind === "fixed" ? "Concurrent" : "Max"}</span>
+                <span>
+                  {profileKind === "fixed" ? "Concurrent" : profileKind === "ramp_up" ? "Max" : "Spike"}
+                </span>
                 <input
                   type="number"
                   min={1}
@@ -768,6 +795,32 @@ export default function App() {
                     onChange={(e) => setRampSeconds(Number(e.target.value))}
                   />
                 </label>
+              )}
+              {profileKind === "spike" && (
+                <>
+                  <label>
+                    <span>At, s</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={60}
+                      value={spikeAt}
+                      disabled={!active || loading}
+                      onChange={(e) => setSpikeAt(Number(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>For, s</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={60}
+                      value={spikeFor}
+                      disabled={!active || loading}
+                      onChange={(e) => setSpikeFor(Number(e.target.value))}
+                    />
+                  </label>
+                </>
               )}
               <label>
                 <span>Requests</span>

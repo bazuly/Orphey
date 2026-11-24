@@ -21,6 +21,12 @@ pub enum LoadProfile {
         max: usize,
         ramp_ms: u64,
     },
+    Spike {
+        base: usize,
+        spike: usize,
+        at_ms: u64,
+        for_ms: u64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -6,6 +6,7 @@ use crate::error::Error;
 
 use crate::load::fixed::{self};
 use crate::load::ramp_up::{self};
+use crate::load::spike;
 use crate::models::load::{LoadProfile, LoadReport, LoadSpec, Sample};
 use crate::models::request::RequestDraft;
 use crate::repository::http::{self, build_request};
@@ -22,6 +23,12 @@ pub async fn run(spec: LoadSpec) -> Result<LoadReport, Error> {
             max,
             ramp_ms,
         } => ramp_up::run(&spec, &client, total_vu, start, max, ramp_ms).await?,
+        LoadProfile::Spike {
+            base,
+            spike,
+            at_ms,
+            for_ms,
+        } => spike::run(&spec, &client, total_vu, base, spike, at_ms, for_ms).await?,
     };
     let elapsed_ms = started.elapsed().as_millis() as u64;
     Ok(summarize(samples, elapsed_ms, spec.profile))
