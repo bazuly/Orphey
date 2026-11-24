@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as api from "./api";
 import type { HttpMethod, RequestDraft, ResponseSnapshot, Room, SavedRequest } from "./types";
 
@@ -135,6 +136,17 @@ function formatElapsed(ms: number): string {
 
 function reportJson(report: api.LoadReport): string {
   return JSON.stringify(report, null, 2);
+}
+
+function releaseFocus() {
+  const focused = document.activeElement;
+  if (focused instanceof HTMLElement) focused.blur();
+}
+
+function keepWindowInFront() {
+  setTimeout(() => {
+    void getCurrentWindow().setFocus().catch(() => undefined);
+  }, 0);
 }
 
 function formatSize(text: string): string {
@@ -444,6 +456,7 @@ export default function App() {
     setSpikeAt(atSeconds);
     setSpikeFor(forSeconds);
     setLoadTotal(total);
+    releaseFocus();
     setLoading(true);
     setStatus("");
     const tabKey = active.key;
@@ -469,6 +482,7 @@ export default function App() {
       setStatus(String(err));
     } finally {
       setLoading(false);
+      keepWindowInFront();
     }
   };
 
